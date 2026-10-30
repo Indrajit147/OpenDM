@@ -8,8 +8,17 @@ project. This page lists every place where data moves.
 - Downloads go directly from your computer to the server of the link you add.
 - The tool manager contacts github.com (yt-dlp) and gyan.dev (FFmpeg) only when you click
   Download/Update or Check now, or weekly if you turned on the update check.
+- The **update check** is off until you turn it on (first-run wizard or Settings -> Updates)
+  or click Check now. It reads this project's public release list from github.com
+  (`api.github.com`, or the public `releases.atom` feed when GitHub's hourly limit is
+  reached). It sends nothing about you beyond what any web request does (your IP address and
+  OpenDM's user agent). Install downloads the installer from github.com.
 - Settings, history and queues stay in `%LOCALAPPDATA%\OpenDM`. Saved passwords and cookies are
   encrypted with Windows DPAPI (only your Windows account can read them).
+- **Logs** (`%LOCALAPPDATA%\OpenDM\logs`, at most 5 MB) stay on your computer. Link query
+  strings, user names and passwords in links, cookies and authorization values are removed
+  before anything is written. *Export diagnostics* puts them in a ZIP for you to attach to a
+  bug report; OpenDM never sends it.
 
 ## Browser extension (OpenDM Integration, Chrome and Edge)
 

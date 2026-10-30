@@ -1,0 +1,51 @@
+name: Bug report
+description: Something does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Security problems go privately via the repository's
+        Security tab (see docs/SECURITY.md), not here.
+  - type: input
+    id: version
+    attributes:
+      label: OpenDM version
+      description: Settings -> Updates shows it, e.g. 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Installed or portable?
+      options: [Installer, Portable ZIP, From source]
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 23H2
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Leave out private links, or replace their tokens with xxx.
+      placeholder: |
+        1. Add URL ...
+        2. ...
+  - type: markdown
+    attributes:
+      value: |
+        **Please attach a diagnostics ZIP**: Settings -> General -> Export diagnostics.
+        Links, cookies and passwords are removed from it. Drag it into the box below.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics ZIP and screenshots
