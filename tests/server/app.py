@@ -11,6 +11,8 @@ Routes
     /redirect/<n>       302 chain of n hops, then to ?to=<path> (default /file/redirected.bin);
                         ?code=301|302|303|307|308
     /status/<code>      replies with that HTTP status
+    /static/<path>      files under FaultServer.static_root (Range, ?rate=); used for media
+                        fixtures and the fake GitHub release
     /_reset             clears per-resource fault state
 
 /file parameters
@@ -55,6 +57,7 @@ from email.utils import formatdate, parsedate_to_datetime
 from functools import lru_cache
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from types import TracebackType
 from typing import Self
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
@@ -66,6 +69,17 @@ BASE_MTIME = 1_767_225_600  # 2026-01-01T00:00:00Z
 COOKIE_NAME = "odm_session"
 COOKIE_VALUE = "opendm-test"
 _UNITS = {"K": 1024, "M": 1024**2, "G": 1024**3}
+_STATIC_TYPES = {
+    ".m3u8": "application/vnd.apple.mpegurl",
+    ".mpd": "application/dash+xml",
+    ".mp4": "video/mp4",
+    ".m4s": "video/iso.segment",
+    ".ts": "video/mp2t",
+    ".vtt": "text/vtt",
+    ".json": "application/json",
+    ".html": "text/html; charset=utf-8",
+    ".zip": "application/zip",
+}
 
 
 class RangeNotSatisfiable(Exception):
@@ -262,12 +276,50 @@ class FaultHandler(BaseHTTPRequestHandler):
             elif route == "_reset":
                 self.server.state.reset()
                 self._simple(204)
+            elif route == "static":
+                self._static(parts[1:], query, head)
             else:
                 self._simple(404, b"not found\n")
         except (BadParameter, ValueError) as exc:
             self._simple(400, f"bad parameter: {exc}\n".encode())
         except ConnectionError:
             self.close_connection = True
+
+    def _static(self, parts: list[str], q: dict[str, str], head: bool) -> None:
+        """Files under ``FaultServer.static_root`` with Range support and optional ?rate=."""
+        root = self.server.static_root
+        if root is None:
+            self._simple(404, b"no static root\n")
+            return
+        path = (root / "/".join(parts)).resolve()
+        if root.resolve() not in path.parents or not path.is_file():
+            self._simple(404, b"not found\n")
+            return
+        data = path.read_bytes()
+        size = len(data)
+        status, start, end = 200, 0, size
+        headers = {
+            "Content-Type": _STATIC_TYPES.get(path.suffix.lower(), "application/octet-stream"),
+            "Accept-Ranges": "bytes",
+        }
+        range_header = self.headers.get("Range")
+        if range_header:
+            try:
+                selected = parse_range(range_header, size)
+            except RangeNotSatisfiable:
+                self._simple(416, b"", {"Content-Range": f"bytes */{size}"})
+                return
+            if selected is not None:
+                status, (start, end) = 206, selected
+                headers["Content-Range"] = f"bytes {start}-{end - 1}/{size}"
+        headers["Content-Length"] = str(end - start)
+        self.send_response(status)
+        for name, value in headers.items():
+            self.send_header(name, value)
+        self.end_headers()
+        if not head:
+            rate = parse_size(q["rate"]) if "rate" in q else 0
+            self._stream([data[start:end]], start, False, rate, None)
 
     def _simple(self, code: int, body: bytes = b"", headers: dict[str, str] | None = None) -> None:
         self.send_response(code)
@@ -445,6 +497,7 @@ class _Server(ThreadingHTTPServer):
         super().__init__(address, FaultHandler)
         self.state = ServerState()
         self.verbose = verbose
+        self.static_root: Path | None = None
 
     def handle_error(self, request: object, client_address: object) -> None:
         if isinstance(sys.exc_info()[1], ConnectionError):
@@ -458,6 +511,15 @@ class FaultServer:
     def __init__(self, host: str = "127.0.0.1", port: int = 0, verbose: bool = False) -> None:
         self._httpd = _Server((host, port), verbose)
         self._thread: threading.Thread | None = None
+
+    @property
+    def static_root(self) -> Path | None:
+        """Folder served under /static/ (None: the route answers 404)."""
+        return self._httpd.static_root
+
+    @static_root.setter
+    def static_root(self, folder: Path | None) -> None:
+        self._httpd.static_root = folder
 
     @property
     def host(self) -> str:
