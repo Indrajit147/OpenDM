@@ -12,6 +12,9 @@ coverage.xml
 pytest-report.xml
 htmlcov/
 
+# Downloaded helper tools (yt-dlp, FFmpeg) when the app's tools folder is inside the repo
+/tools-bin/
+
 # Build output (PyInstaller / Inno Setup)
 build/
 dist/

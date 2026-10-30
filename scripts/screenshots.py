@@ -75,6 +75,47 @@ dialog = StartDownloadDialog(
 dialog.resize(600, 320)
 spin(1.5)
 dialog.grab().save(str(out / "start-dialog-dark.png"))
+
+# M5 dialogs. The quality picker uses a real analysis when OPENDM_TEST_TOOLS points at
+# yt-dlp/FFmpeg and the media fixtures exist; otherwise a sample description.
+from opendm.engine.media.ytdlp import MediaEntry, MediaInfo, ToolPaths  # noqa: E402
+from opendm.gui.dialogs.media import MediaDialog  # noqa: E402
+from opendm.gui.dialogs.tools import ToolsConsentDialog  # noqa: E402
+
+info = MediaInfo(
+    url="https://example.com/watch", title="Sample video (test pattern)", duration=5,
+    uploader="OpenDM tests", heights=[1080, 720, 480], subtitles=["en"], auto_subtitles=["bn"],
+)  # fmt: skip
+tools_dir = os.environ.get("OPENDM_TEST_TOOLS")
+fixtures = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "media"
+if tools_dir and (fixtures / "page.html").exists():
+    base = Path(tools_dir)
+    paths = ToolPaths(ytdlp=base / "yt-dlp" / "yt-dlp.exe",
+                      ffmpeg=base / "ffmpeg" / "bin" / "ffmpeg.exe")  # fmt: skip
+    server.static_root = fixtures
+    app.engine.call(lambda m: m.set_tools(paths)).result(5)
+    request = DownloadRequest(server.url("/static/page.html"), work / "dl")
+    info = app.engine.call(lambda m: m.analyze_media(request)).result(120)
+picker = MediaDialog(info, base_dir=work / "dl", categories=app.window.categories,
+                     queues=app.window.queues)  # fmt: skip
+picker.resize(560, 360)
+spin(0.5)
+picker.grab().save(str(out / "media-dialog-dark.png"))
+playlist = MediaInfo(
+    url="https://example.com/list", title="Sample playlist", uploader="OpenDM tests",
+    entries=[MediaEntry(f"https://example.com/v/{i}", f"Episode {i}", 600 + i * 30)
+             for i in range(1, 6)],
+)  # fmt: skip
+list_picker = MediaDialog(playlist, base_dir=work / "dl", categories=app.window.categories,
+                          queues=app.window.queues)  # fmt: skip
+list_picker.resize(560, 520)
+spin(0.5)
+list_picker.grab().save(str(out / "playlist-dialog-dark.png"))
+consent = ToolsConsentDialog(["yt-dlp", "ffmpeg"], Path(r"D:\Projects\opendm\tools-bin"),
+                             {"yt-dlp": 23_592_960, "ffmpeg": 114_819_072})  # fmt: skip
+consent.resize(520, 330)
+spin(0.5)
+consent.grab().save(str(out / "consent-dialog-dark.png"))
 app.shutdown()
 server.stop()
 print("saved to", out)
