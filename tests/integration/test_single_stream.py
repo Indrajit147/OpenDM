@@ -103,7 +103,9 @@ async def test_unusual_servers(server: FaultServer, tmp_path: Path, faults: str)
 
 
 async def test_cookie_protected(server: FaultServer, tmp_path: Path) -> None:
-    dl, _ = make(server, "/protected/p.bin?size=100", tmp_path, cookies=f"{COOKIE_NAME}={COOKIE_VALUE}")
+    dl, _ = make(
+        server, "/protected/p.bin?size=100", tmp_path, cookies=f"{COOKIE_NAME}={COOKIE_VALUE}"
+    )
     result = await dl.run()
     assert result is not None and result.size == 100
 
@@ -193,7 +195,9 @@ def pause_after(dl: SingleStreamDownload, events: list[Event], nbytes: int) -> N
     ("faults", "seed"),
     [("", 1), ("&range=none", 1), ("&etag_after=2", content_seed(1, version=1))],
 )
-async def test_pause_and_resume(server: FaultServer, tmp_path: Path, faults: str, seed: int) -> None:
+async def test_pause_and_resume(
+    server: FaultServer, tmp_path: Path, faults: str, seed: int
+) -> None:
     dl, events = make(server, f"/file/a.bin?size={SIZE}&rate=1M{faults}", tmp_path)
     pause_after(dl, events, 100_000)
     assert await dl.run() is None
