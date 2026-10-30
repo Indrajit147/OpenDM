@@ -105,9 +105,10 @@ async def test_download_and_arguments(tools: ToolPaths, tmp_path: Path) -> None:
     assert argv[-2:] == ["--", "http://fake/ok"]
     assert "--continue" in argv and f"home:{tmp_path / 'dl'}" in argv
     assert argv[argv.index("--ffmpeg-location") + 1] == str(tools.ffmpeg.parent)  # type: ignore[union-attr]
-    assert argv[
-        argv.index("--add-header") : argv.index("--add-header") + 2
-    ] == ["--add-header", "X-Test:1"]
+    assert argv[argv.index("--add-header") : argv.index("--add-header") + 2] == [
+        "--add-header",
+        "X-Test:1",
+    ]
     assert "Bearer TOKEN" not in " ".join(argv)  # auth headers never go on the command line
     cookie_file = Path(argv[argv.index("--cookies") + 1])
     assert not cookie_file.exists()  # deleted after the run
