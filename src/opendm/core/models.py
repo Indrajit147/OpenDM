@@ -9,6 +9,7 @@ class JobState(StrEnum):
     QUEUED = "queued"
     PROBING = "probing"
     DOWNLOADING = "downloading"
+    VERIFYING = "verifying"
     PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -27,6 +28,10 @@ class DownloadRequest:
     referrer: str | None = None
     cookies: str | None = None
     verify_tls: bool = True
+    checksum: str | None = None  # "sha256:<hex>", "sha1:<hex>" or "md5:<hex>"
+    speed_limit: int | None = None  # bytes per second for this download
+    restart: bool = False  # discard an existing partial download of the same URL
+    part_file: Path | None = None  # continue this partial file (URL may be a refreshed link)
 
     def request_headers(self) -> dict[str, str]:
         """Headers to send with every request for this download."""

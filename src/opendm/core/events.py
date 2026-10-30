@@ -16,6 +16,8 @@ class Progress:
     total: int | None
     speed: float  # bytes per second, averaged
     eta: float | None  # seconds
+    connections: int = 0  # active connections
+    segments: tuple[tuple[int, int | None, int], ...] = ()  # (start, end, received) for the map
 
 
 @dataclass(frozen=True, slots=True)
