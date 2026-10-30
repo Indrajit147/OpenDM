@@ -427,6 +427,13 @@ specification (section 4); later entries were made during development.
   releasing its mutex. The installer runs normally (not silent). Old installers are deleted
   at the next start. Portable builds open the release page instead (a ZIP cannot replace the
   running exe safely).
+- **Hourly limit (found in the M8 manual test):** GitHub allows 60 anonymous API requests
+  an hour per internet connection; on shared or mobile connections that can run out. When the
+  API fails, the check reads `https://github.com/Indrajit147/OpenDM/releases.atom` (not
+  limited): tag, title, notes (HTML) and page link per release; the installer and sums links
+  are built from the release workflow's fixed file names and still go through the same
+  prefix and SHA-256 checks. If both fail on a 403/429, the message says the limit was
+  reached and to try again in an hour.
 - **Rejected:** silent updates (spec 6.9); a separate updater exe (more to sign and test);
   trusting the GitHub API's own digest field only (older releases lack it; the sums file is
   under our control and published with the build).

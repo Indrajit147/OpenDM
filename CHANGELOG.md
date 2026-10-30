@@ -9,7 +9,8 @@ GitHub release notes. Versions follow `X.Y.Z`, with `-rc.N` for test releases.
 - Releases are built on GitHub from version tags: installer, portable ZIP and `SHA256SUMS.txt`.
 - Optional update check (off until you turn it on): shows the release notes, downloads the
   installer, checks its SHA-256 and runs it only when you click Install. Pre-releases only if
-  you ask for them. The portable version opens the release page instead.
+  you ask for them. The portable version opens the release page instead. When GitHub's
+  hourly limit for anonymous requests is reached, the check reads the public releases feed.
 - yt-dlp and FFmpeg now live in their own `tools` folder next to OpenDM (portable:
   `data\tools`), never in Downloads. Tools found inside the download folder are moved there.
 - If yt-dlp or FFmpeg goes missing, video and audio downloads wait and OpenDM offers once to

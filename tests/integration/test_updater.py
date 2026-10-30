@@ -107,6 +107,7 @@ def site(server: FaultServer, tmp_path: Path):
     server.static_root = root
     source = UpdateSource(
         api_url=server.url("/static/releases.json"),
+        feed_url=server.url("/static/releases.atom"),  # absent unless a test writes it
         download_prefix=server.url("/static/dl/"),
         page_url=server.url("/static/"),
     )
@@ -170,9 +171,85 @@ async def test_links_outside_the_project_are_refused(site, tmp_path: Path) -> No
 
 
 async def test_api_errors_are_reported(server: FaultServer) -> None:
-    source = UpdateSource(api_url=server.url("/status/500"), download_prefix="x", page_url="x")
+    source = UpdateSource(
+        api_url=server.url("/status/500"), feed_url=server.url("/status/500"),
+        download_prefix="x", page_url="x",
+    )  # fmt: skip
     with pytest.raises(DownloadError):
         await Updater(source).check("0.8.0", prereleases=False)
+
+
+# --- GitHub's hourly limit: fall back to the public releases feed ----------------------------
+
+FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-US">
+  <title>Release notes from OpenDM</title>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v0.9.0-rc.1</id>
+    <link rel="alternate" type="text/html" href="https://example.invalid/tag/v0.9.0-rc.1"/>
+    <title>OpenDM 0.9.0-rc.1</title>
+    <content type="html">&lt;p&gt;Test build&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v0.9.0</id>
+    <link rel="alternate" type="text/html" href="https://example.invalid/tag/v0.9.0"/>
+    <title>OpenDM 0.9.0</title>
+    <content type="html">&lt;h3&gt;Added&lt;/h3&gt;&lt;p&gt;Feeds&lt;/p&gt;</content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/not-a-version</id>
+    <title>Something else</title>
+  </entry>
+</feed>
+"""
+
+
+@pytest.fixture
+def limited(site, server: FaultServer):
+    """The API answers 403 (hourly limit reached); the feed and the files are there."""
+    root, source = site
+    feed = FEED.replace("v0.9.0-rc.1", "v0.9.1-rc.1").replace("0.9.0-rc.1", "0.9.1-rc.1")
+    (root / "releases.atom").write_text(feed, encoding="utf-8")
+    tag_dir = root / "dl" / "v0.9.0"
+    tag_dir.mkdir()
+    for name in ("OpenDM-0.9.0-setup.exe", "SHA256SUMS.txt"):
+        (tag_dir / name).write_bytes((root / "dl" / name).read_bytes())
+    source = UpdateSource(
+        api_url=server.url("/status/403"), feed_url=server.url("/static/releases.atom"),
+        download_prefix=source.download_prefix, page_url=source.page_url,
+    )  # fmt: skip
+    return root, source
+
+
+async def test_limit_falls_back_to_the_feed(limited, tmp_path: Path) -> None:
+    _, source = limited
+    updater = Updater(source)
+    update = await updater.check("0.8.0", prereleases=False)
+    assert update is not None and str(update.version) == "0.9.0"
+    assert update.installer is not None
+    assert update.installer.url == source.download_prefix + "v0.9.0/OpenDM-0.9.0-setup.exe"
+    assert update.sums is not None and update.sums.url.endswith("v0.9.0/SHA256SUMS.txt")
+    assert update.notes_format == "html" and "Feeds" in update.notes
+    assert update.page_url == "https://example.invalid/tag/v0.9.0"
+    path = await updater.download(update, tmp_path / "updates")  # still checked against SHA-256
+    assert path.read_bytes() == INSTALLER
+
+
+async def test_feed_respects_the_prerelease_choice(limited) -> None:
+    _, source = limited
+    update = await Updater(source).check("0.8.0", prereleases=True)
+    assert update is not None and str(update.version) == "0.9.1-rc.1"
+    assert await Updater(source).check("0.9.0", prereleases=False) is None
+
+
+async def test_limit_and_no_feed_explains_the_limit(server: FaultServer) -> None:
+    source = UpdateSource(
+        api_url=server.url("/status/403"), feed_url=server.url("/status/500"),
+        download_prefix="x", page_url="x",
+    )  # fmt: skip
+    with pytest.raises(DownloadError) as exc:
+        await Updater(source).check("0.8.0", prereleases=False)
+    assert "limit" in exc.value.message and "try again" in exc.value.message
 
 
 async def test_unreadable_api_answer(site) -> None:

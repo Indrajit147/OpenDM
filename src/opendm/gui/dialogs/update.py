@@ -35,7 +35,10 @@ class UpdateDialog(QDialog):
         self.heading.setWordWrap(True)
         self.notes = QTextBrowser()
         self.notes.setOpenExternalLinks(True)
-        self.notes.setMarkdown(update.notes or self.tr("No release notes."))
+        if update.notes_format == "html":  # from the releases feed (GitHub rendered it)
+            self.notes.setHtml(update.notes or self.tr("No release notes."))
+        else:
+            self.notes.setMarkdown(update.notes or self.tr("No release notes."))
         size = update.installer.size if update.installer else None
         if portable:
             hint = self.tr(

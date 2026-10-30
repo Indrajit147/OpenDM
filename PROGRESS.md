@@ -67,6 +67,10 @@
   rc.2 is still a draft, so step 7 (update to rc.2) has not run.
 - Fixed after the first release: GitHub showed the notes with a line break at every wrapped
   CHANGELOG line; `release_notes.py` now joins them (from the next release on).
+- Found in the manual test: "Check now" failed with HTTP 403 because GitHub's 60 requests
+  an hour for anonymous callers were used up (Claude's CI polling from the same connection).
+  The updater now falls back to the releases feed; the real feed finds rc.2 from rc.1. This
+  is in the next build (rc.3), not in the installed rc.1.
 - On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes

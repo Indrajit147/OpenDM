@@ -4,12 +4,18 @@ Only asks GitHub when the user turned the check on or clicked "Check now". Draft
 offered; pre-releases only when the user asked for them. The installer is downloaded next to
 the app, checked against the release's ``SHA256SUMS.txt`` and only then handed to the GUI,
 which runs it after the user clicks Install. Nothing is installed silently.
+
+GitHub allows 60 API requests an hour per internet connection without a token. When that
+limit is reached (or the API fails), the public releases feed (``releases.atom``, not
+limited) is used instead: it has tags, titles and notes, and the asset links follow the
+release workflow's fixed names. Drafts are never in the feed.
 """
 
 import contextlib
 import hashlib
 import json
 import os
+import xml.etree.ElementTree as ElementTree
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,11 +30,13 @@ from opendm.tools.sources import parse_sums
 REPO = "Indrajit147/OpenDM"
 SUMS_NAME = "SHA256SUMS.txt"
 MAX_API_TEXT = 4 * 1024 * 1024
+_ATOM = "{http://www.w3.org/2005/Atom}"
 
 
 @dataclass(frozen=True)
 class UpdateSource:
     api_url: str = f"https://api.github.com/repos/{REPO}/releases?per_page=30"
+    feed_url: str = f"https://github.com/{REPO}/releases.atom"
     # Every installer/checksum link must start with this (the API's asset links are checked).
     download_prefix: str = f"https://github.com/{REPO}/releases/download/"
     page_url: str = f"https://github.com/{REPO}/releases"
@@ -51,6 +59,7 @@ class AppUpdate:
     installer: Asset | None
     portable: Asset | None
     sums: Asset | None
+    notes_format: str = "markdown"  # "html" when read from the releases feed
 
 
 def _assets(entry: dict[str, Any]) -> dict[str, Asset]:
@@ -91,6 +100,7 @@ def pick_update(releases: list[Any], current: Version, *, prereleases: bool) -> 
             installer=assets.get(f"OpenDM-{version}-setup.exe"),
             portable=assets.get(f"OpenDM-{version}-portable.zip"),
             sums=assets.get(SUMS_NAME),
+            notes_format=str(entry.get("notes_format") or "markdown"),
         )
     return best
 
@@ -106,6 +116,23 @@ class Updater:
         self._transport_factory = transport_factory
 
     async def check(self, current: str, *, prereleases: bool) -> AppUpdate | None:
+        try:
+            releases = await self._api_releases()
+        except DownloadError as api_error:
+            try:
+                releases = await self._feed_releases()
+            except DownloadError:
+                if api_error.status in (403, 429):
+                    raise DownloadError(
+                        api_error.kind,
+                        "GitHub's hourly limit for update checks from your internet connection "
+                        "was reached; try again in an hour",
+                        status=api_error.status,
+                    ) from api_error
+                raise api_error from None
+        return pick_update(releases, parse_version(current), prereleases=prereleases)
+
+    async def _api_releases(self) -> list[Any]:
         text = await get_text(
             self._transport_factory(), self.source.api_url,
             {"Accept": "application/vnd.github+json"}, limit=MAX_API_TEXT,
@@ -116,7 +143,34 @@ class Updater:
             raise DownloadError(ErrorKind.HTTP_CLIENT, "GitHub sent an unreadable answer") from exc
         if not isinstance(releases, list):
             raise DownloadError(ErrorKind.HTTP_CLIENT, "GitHub sent an unexpected answer")
-        return pick_update(releases, parse_version(current), prereleases=prereleases)
+        return releases
+
+    async def _feed_releases(self) -> list[dict[str, Any]]:
+        """The releases feed in the API's shape (assets built from the fixed file names)."""
+        text = await get_text(self._transport_factory(), self.source.feed_url, limit=MAX_API_TEXT)
+        try:
+            root = ElementTree.fromstring(text)
+        except ElementTree.ParseError as exc:
+            raise DownloadError(ErrorKind.HTTP_CLIENT, "GitHub sent an unreadable feed") from exc
+        releases = []
+        for entry in root.findall(f"{_ATOM}entry"):
+            tag = (entry.findtext(f"{_ATOM}id") or "").rsplit("/", 1)[-1]
+            try:
+                version = parse_version(tag)
+            except ValueError:
+                continue
+            link = entry.find(f"{_ATOM}link[@rel='alternate']")
+            base = f"{self.source.download_prefix}{tag}/"
+            names = (f"OpenDM-{version}-setup.exe", f"OpenDM-{version}-portable.zip", SUMS_NAME)
+            releases.append({
+                "tag_name": tag, "draft": False, "prerelease": version.is_prerelease,
+                "name": entry.findtext(f"{_ATOM}title") or "",
+                "body": entry.findtext(f"{_ATOM}content") or "",
+                "html_url": link.get("href", "") if link is not None else "",
+                "assets": [{"name": n, "browser_download_url": base + n} for n in names],
+                "notes_format": "html",
+            })  # fmt: skip
+        return releases
 
     async def download(
         self, update: AppUpdate, folder: Path, progress: ProgressCallback | None = None
