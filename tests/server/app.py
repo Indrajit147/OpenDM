@@ -13,6 +13,7 @@ Routes
     /status/<code>      replies with that HTTP status
     /static/<path>      files under FaultServer.static_root (Range, ?rate=); used for media
                         fixtures and the fake GitHub release
+    /pages/<name>.html  hand-written pages for the browser extension checklist (tests/server/pages)
     /_reset             clears per-resource fault state
 
 /file parameters
@@ -48,6 +49,7 @@ import contextlib
 import gzip
 import hashlib
 import random
+import re
 import socket
 import sys
 import threading
@@ -66,6 +68,7 @@ CHUNK = 64 * 1024  # content generator block
 WRITE_SIZE = 16 * 1024  # socket write size (keeps throttling smooth)
 DEFAULT_SIZE = 1024 * 1024
 BASE_MTIME = 1_767_225_600  # 2026-01-01T00:00:00Z
+PAGES = Path(__file__).resolve().parent / "pages"
 COOKIE_NAME = "odm_session"
 COOKIE_VALUE = "opendm-test"
 _UNITS = {"K": 1024, "M": 1024**2, "G": 1024**3}
@@ -278,12 +281,27 @@ class FaultHandler(BaseHTTPRequestHandler):
                 self._simple(204)
             elif route == "static":
                 self._static(parts[1:], query, head)
+            elif route == "pages" and len(parts) == 2:
+                self._page(parts[1])
             else:
                 self._simple(404, b"not found\n")
         except (BadParameter, ValueError) as exc:
             self._simple(400, f"bad parameter: {exc}\n".encode())
         except ConnectionError:
             self.close_connection = True
+
+    def _page(self, name: str) -> None:
+        path = PAGES / name
+        if not re.fullmatch(r"[\w-]+\.html", name) or not path.is_file():
+            self._simple(404, b"not found\n")
+            return
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def _static(self, parts: list[str], q: dict[str, str], head: bool) -> None:
         """Files under ``FaultServer.static_root`` with Range support and optional ?rate=."""

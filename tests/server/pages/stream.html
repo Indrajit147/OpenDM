@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>OpenDM test: stream</title></head>
+<body>
+<h1>Stream</h1>
+<p>Needs the media fixtures: run the server with <code>--static tests\fixtures\media</code>.</p>
+<p>This page fetches an HLS manifest and one segment like a web player would. The OpenDM
+toolbar button should show a badge with the stream; the segment must not be listed.</p>
+<pre id="log"></pre>
+<script>
+  const log = (line) => (document.getElementById("log").textContent += line + "\n");
+  (async () => {
+    const manifest = await fetch("/static/hls/index.m3u8").then((r) => r.text());
+    log("manifest fetched: " + manifest.split("\n").length + " lines");
+    const segment = manifest.split("\n").find((l) => l && !l.startsWith("#"));
+    if (segment) {
+      await fetch("/static/hls/" + segment);
+      log("segment fetched: " + segment);
+    }
+  })().catch((e) => log("error: " + e));
+</script>
+</body>
+</html>

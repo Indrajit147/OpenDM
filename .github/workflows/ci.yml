@@ -31,6 +31,9 @@ jobs:
           ruff check .
           ruff format --check .
 
+      - name: Extension tests (Node preinstalled on the runner)
+        run: node --test extension/tests/
+
       - name: Test
         run: python -m pytest -q --cov --cov-report=term-missing --junitxml=pytest-report.xml
 

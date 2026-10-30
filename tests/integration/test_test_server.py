@@ -352,6 +352,20 @@ def test_set_cookie_route(server: FaultServer) -> None:
     assert f"{COOKIE_NAME}={COOKIE_VALUE}" in (resp.getheader("Set-Cookie") or "")
 
 
+@pytest.mark.parametrize("name", ["links.html", "video.html", "stream.html"])
+def test_extension_pages(server: FaultServer, name: str) -> None:
+    resp, body = request(server, f"/pages/{name}")
+    assert resp.status == 200
+    assert resp.getheader("Content-Type") == "text/html; charset=utf-8"
+    assert body.startswith(b"<!doctype html>")
+
+
+@pytest.mark.parametrize("path", ["/pages/missing.html", "/pages/..%2Fapp.py", "/pages/app.py"])
+def test_extension_pages_only_serve_pages(server: FaultServer, path: str) -> None:
+    resp, _ = request(server, path)
+    assert resp.status == 404
+
+
 # --- HEAD that fails or lies ------------------------------------------------------------------
 
 
