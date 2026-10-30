@@ -233,3 +233,47 @@ specification (section 4); later entries were made during development.
   category, otherwise the fallback ("Other"). Folders: empty = base folder, relative = inside
   it, absolute = as is. Defaults: `<Downloads>\Video`, `\Audio`, `\Documents`, `\Compressed`,
   `\Programs`; Other in `<Downloads>`. `<Downloads>` comes from the Known Folder API.
+
+## D42 Qt package (M4, 2026-10-30, approved)
+- **Choice:** `PySide6-Essentials` 6.12 only (~209 MB installed in `.venv`), not the full
+  `PySide6` meta-package (+39 MB Addons). The speed graph and segment map are drawn with
+  QPainter (original design), so Qt Charts is not needed.
+
+## D43 GUI <-> engine (M4, 2026-10-30, approved)
+- **Choice:** `core/bridge.py` runs loop + database + manager on one thread. The GUI calls
+  `engine.call(fn)` (future, callbacks delivered on the GUI thread through a queued signal) and a
+  250 ms timer drains events, keeping only the newest progress per job (~4 Hz, spec 6.4).
+  Job changes travel as `JobSnapshot` copies, so the GUI never reads SQLite. The app reads its
+  settings once at startup with a blocking call; everything else is asynchronous.
+
+## D44 IPC and single instance (M4, 2026-10-30; corrects D10)
+- **Finding:** on Windows several `QLocalServer`s can listen on one pipe name, so the pipe is
+  not a single-instance lock (a test documents this).
+- **Choice:** the lock is a per-user named mutex (`Local\opendm-ipc-<user>`, `CreateMutexW`;
+  released by the OS if the process dies). The pipe server uses `UserAccessOption`. The client
+  is plain file I/O on `\\.\pipe\...` so the CLI and (M6) the Native Messaging host need no Qt.
+  Protocol: one JSON object per line, versioned, strict per-command argument schemas, http/https
+  only, header-injection checks, 1 MiB limit. `OPENDM_IPC_NAME` overrides the pipe name so tests
+  never touch a real running app.
+
+## D45 Desktop behaviour (M4, 2026-10-30, approved)
+- **Choice:** closing the window keeps OpenDM in the tray (a one-time notice; setting to turn it
+  off); Quit is in the tray menu. Clipboard monitor is opt-in and only reacts to single links
+  whose path ends in a known category extension. Completion notifications are on by default.
+- Opening a downloaded program or script (`.exe .msi .bat .ps1 .js .lnk ...`) always asks first;
+  nothing is ever opened automatically (spec 7).
+
+## D46 After-queue power actions (M4, 2026-10-30, approved)
+- **Choice:** the engine emits `PowerRequested`; the GUI shows a 60 s countdown with Cancel and
+  "Do it now". Shutdown runs `shutdown /s /t 0` (argument list, no shell); sleep calls
+  `powrprof.SetSuspendState(False, False, False)`. Tests inject a fake and never call either.
+
+## D47 Proxy (M4, 2026-10-30, approved)
+- **Choice:** Windows/system proxy (default), no proxy, or a manual HTTP(S) proxy URL, applied
+  to downloads started afterwards. SOCKS needs the `socksio` package: deferred, to be asked
+  about separately.
+
+## D48 Visual checks (M4, 2026-10-30)
+- **Choice:** `scripts/screenshots.py` renders the real windows with live test-server downloads
+  into `build/screens` without showing anything on screen (`grab()` on hidden widgets). The
+  offscreen Qt platform has no usable fonts on Windows, so screenshots use the native platform.

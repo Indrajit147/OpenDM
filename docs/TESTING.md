@@ -119,3 +119,42 @@ schedules with a fake clock). Optional check that secrets are encrypted at rest:
 1. Run `.venv\Scripts\python.exe -m pytest -q tests\unit\test_repositories.py -k encrypted`.
 2. It writes a database with a cookie, then searches the raw database file for the cookie text;
    the test passes only if the text is not found.
+
+## Manual checklist: M4 (desktop app)
+
+GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen`, set in `tests/conftest.py`).
+`.venv\Scripts\python.exe scripts\screenshots.py` renders the main window, details window and
+start dialog with live downloads into `build\screens` without showing anything.
+
+Keep the test server running in one CMD window (M0 checklist, step 1). In a second window:
+
+1. Start the app: `cd /d D:\Projects\opendm` then `.venv\Scripts\opendm.exe`.
+   The first-run wizard appears. Choose a download folder on D: (for example `D:\Downloads`),
+   keep the tools folder, finish. The main window opens; the tray shows the OpenDM icon.
+   (App data lives in `%LOCALAPPDATA%\OpenDM`: a small database only.)
+2. Copy `http://127.0.0.1:8765/file/test-pack.zip?size=50M&rate=2M` and click **Add URL**: the
+   link is already filled in. OK -> the start dialog shows `test-pack.zip`, 50.0 MiB, category
+   Compressed, folder `D:\Downloads\Compressed`. Click **Start now**.
+3. Watch the row: progress bar, speed, time left. Double-click it: the details window shows
+   the speed graph and the segment map filling in 8 places. Click **Pause**, then **Resume**.
+4. When it completes, a notification appears. Right-click the row: **Open folder** opens
+   Explorer at the file.
+5. **Add URL** -> **Batch** tab, paste `http://127.0.0.1:8765/file/part[1-3].bin?size=5M` ->
+   "3 link(s)" -> OK. Three downloads start in `D:\Downloads` (category Other).
+6. Sidebar: click **Finished**, **Compressed**, **Main**; type `part` in the search box.
+7. Select a finished row, press Delete, tick "Also delete the downloaded file(s)", Yes: the row
+   and the file disappear.
+8. **Settings** -> Appearance -> Dark -> OK: the window turns dark. Set it back to "Same as
+   Windows".
+9. **Queues**: set "Start at" to two minutes from now, OK... (optional) add a download with
+   "Add to queue" and see it start at that time. Set "When finished" to Shut down only if you
+   want to see the 60 s countdown - press **Cancel** in it.
+10. Close the window with X: a notice says OpenDM keeps running in the tray. Click the tray
+    icon: the window returns.
+11. CLI talking to the running app, in the second CMD window:
+    `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/cli.bin?size=5M"` -> "Added ...",
+    the row appears in the window; `.venv\Scripts\opendm-cli.exe list` shows it.
+12. Start `.venv\Scripts\opendm.exe "http://127.0.0.1:8765/file/second.zip?size=1M"` while the
+    app runs: no second window; the running app shows a start dialog for `second.zip`.
+13. Drag a link from a browser's address bar onto the window: a start dialog opens.
+14. Tray icon -> **Quit**. Start the app again: finished downloads are still listed.

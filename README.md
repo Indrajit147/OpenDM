@@ -2,17 +2,25 @@
 
 A free, open-source, no-subscription download manager for Windows.
 
-> **Status: early development (milestone M0, foundations).** Nothing is usable yet.
-> See [PROGRESS.md](PROGRESS.md) and the [project specification](docs/PROJECT_SPEC.md).
+> **Status: early development (milestone M4, desktop app).** It works from source; there is
+> no installer yet. See [PROGRESS.md](PROGRESS.md) and the
+> [project specification](docs/PROJECT_SPEC.md).
 
-## Planned features
+## Features
 
-- Fast multi-connection downloads with pause, resume and crash recovery
+Working now:
+
+- Fast multi-connection downloads (up to 32 connections) with pause, resume and crash recovery
+- Queues with schedules, categories with their own folders, speed limits, searchable history
+- Desktop app with light/dark theme, tray icon, notifications, drag and drop of links
+- `opendm-cli` command line, talking to the running app or standalone
+- No telemetry, no ads, no subscription
+
+Planned:
+
 - Video and audio from many websites via [yt-dlp](https://github.com/yt-dlp/yt-dlp), with FFmpeg merging
 - Chrome and Edge extension: download takeover, context menu, media detection
-- Queues, scheduling, categories, speed limits and history
 - Per-user installer (no admin rights) and a portable build
-- No telemetry, no ads, no subscription
 
 ## Disclaimer
 
@@ -32,6 +40,9 @@ D:\Tools\Python312\python.exe -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .[dev]
 .venv\Scripts\python.exe -m pytest -q
 ```
+
+Run the app with `.venv\Scripts\opendm.exe` (or `.venv\Scripts\python.exe -m opendm`), and the
+command line with `.venv\Scripts\opendm-cli.exe --help`.
 
 ## License
 

@@ -51,6 +51,8 @@ CLI, MV3 browser extension via Native Messaging, yt-dlp/FFmpeg for media.
   `tests/conftest.py`.
 - No internet in default tests; real-site tests use `@pytest.mark.live` (skipped by default).
 - pytest temp files go to `build/pytest-tmp` (`--basetemp`), never `%TEMP%` on C:.
+- GUI tests run offscreen; `OPENDM_IPC_NAME` gives tests a private pipe. Never pop windows on
+  the user's screen: for visual checks run `scripts/screenshots.py` (renders into build/screens).
 - Coverage target >= 85% for `engine/` and `core/`.
 - Never commit secrets, cookies, large binaries or generated fixtures (`tests/fixtures/`).
 

@@ -1,65 +1,60 @@
 # Progress
 
-## Current milestone: M3 Storage, queue, scheduler (complete, awaiting user review)
+## Current milestone: M4 GUI v1 (complete, awaiting user review)
 
-### M3 done (2026-10-30)
-- `storage/db.py`: SQLite (WAL, foreign keys), transactional numbered migrations tracked in
-  `PRAGMA user_version`; `storage/migrations/0001_initial.sql` (queues, categories, jobs,
-  settings; Main queue and six categories seeded).
-- `storage/repositories.py`: jobs (history, search/filters, interrupted-recovery, safe deletes,
-  redownload), queues, categories, settings. Cookies and auth headers are DPAPI-encrypted
-  (`core/secrets.py`); without DPAPI they are not stored.
-- `queue/scheduler.py` `DownloadManager`: add/start/pause/resume/restart/remove/refresh_link/
-  redownload, per-queue concurrency, manual "start now", per-host connection sharing
-  (`queue/host_limits.py`), global speed limit, schedule windows with `tick()` on an injectable
-  clock (`queue/schedule.py`), `QueueFinished` event and after-queue action hook
-  (`queue/power.py`, no-op until M4), progress saved to the DB every 2 s.
-- `discovery/categories.py`: extension matching (longest extension wins) and category folders.
-- `core/paths.downloads_dir()` (Known Folder API), `core/models` Job/Queue/Category.
-- Decisions D35–D41.
-
-- Fixed an M2 engine bug found by repeat runs: pausing while a buffer was being written to disk
-  left those bytes uncounted, so they were downloaded again on resume (safe, but up to one
-  buffer per connection wasted). Deterministic regression test added.
+### M4 done (2026-10-30)
+- Dependencies: PySide6-Essentials 6.12.0 + shiboken6 (LGPL-3.0), pytest-qt 4.5.0 (dev, MIT).
+- `core/bridge.py`: engine thread (loop + DB + manager), futures for commands, job snapshots
+  and coalesced progress for the GUI. `core/batch.py` (`[01-20]` patterns, URL lists),
+  `core/app_settings.py` (user settings, proxy modes).
+- `ipc/`: validated JSON-lines protocol, user-only named-pipe server, Qt-free client, per-user
+  named-mutex single-instance lock (the pipe alone is not exclusive on Windows: D44).
+- CLI: `get` (without `--standalone`), `list`, `pause`, `resume`, `remove [--delete-file]` go
+  through the running app.
+- `gui/`: main window (toolbar, sidebar views, sortable table with progress bars, context menu,
+  search, drag and drop, status bar), Add URL (batch), start dialog (probe, category/folder,
+  queue, checksum), details (speed graph, segment map, connections), settings, queues, first-run
+  wizard, tray + notifications, opt-in clipboard monitor, light/dark/system theme, 60 s
+  countdown for sleep/shutdown, app icon drawn in code, `opendm.exe` / `python -m opendm`.
+- Engine: manual HTTP proxy / no proxy; manager `probe`, `apply_settings`, `move_to_queue`.
+- Fixed: a job's name could include the URL query string before the first probe.
+- Decisions D42–D48.
 
 ### Results
-- `pytest -q`: 407 passed, 3 consecutive full runs. `ruff check .` / `ruff format --check .`:
-  clean. CI green.
-- Coverage 93% overall; every `core/`, `engine/`, `storage/`, `queue/` module >= 84%.
-- Acceptance: jobs persist across restarts (incl. encrypted cookies; resumed download has the
-  correct SHA-256 and re-fetches nothing beyond in-flight data); crash recovery marks running
-  jobs "interrupted"; queue max_concurrent=2 holds with 5 jobs in order; per-host limit shares
-  and waits correctly; schedule start/stop on a fake clock, after-action fires exactly once and
-  never for a manually stopped or empty queue; global speed limit within +-10%.
+- `pytest -q`: 493 passed. `ruff check .` / `ruff format --check .`: clean.
+- Smoothness (acceptance): 10 parallel downloads, longest UI stall < 100 ms measured with a 10 ms
+  heartbeat; table updates 2-5 per row per second.
+- Visual check with `scripts/screenshots.py` (real Windows rendering, nothing shown on screen):
+  main window, details (8-connection segment map), start dialog. Fixed from it: busy bar on
+  failed rows, wrapped status text, cut-off dates.
 
 ### Known limitations
-- No GUI or IPC yet (M4): the manager is used from tests only; sleep/shutdown is a no-op hook.
-- Per-host limits are granted when a job starts; a running job does not gain connections when
-  another finishes.
-- Category is guessed from the URL name when a job is added; the M4 start dialog will show
-  the probed name and let the user change it.
-- TLS failure path still has no end-to-end test (no local HTTPS server).
+- The user's manual checklist (docs/TESTING.md, M4) has not been run yet.
+- Tray, notifications and the clipboard monitor are only partly covered by automated tests
+  (no tray in the offscreen platform).
+- No logging/diagnostics export yet (spec 6.11), no translations yet (strings use `tr()`).
+- SOCKS proxy deferred (needs `socksio`). A running download does not pick up settings changes.
+- Toolbar icons are Qt's standard icons; a nicer original icon set can come later.
 
 ### Earlier milestones
-- **M2 (2026-10-30):** multi-connection engine (`HttpDownload`), crash-safe resume, retries,
-  fallbacks, speed limit, checksums, CLI options. D27–D34.
-- **M1 (2026-10-30):** errors, events, progress, filename sanitizer, Content-Disposition
-  parsing, httpx transport, probe, CLI. D20–D26.
-- **M0 (2026-10-30):** Python 3.12.10 at `D:\Tools\Python312`, repo skeleton, tooling, GPL-3.0,
-  fault-injection test server, CI. D1–D19.
+- **M3 (2026-10-30):** SQLite storage, encrypted secrets, DownloadManager (queues, host limits,
+  schedules), categories, history. D35–D41.
+- **M2 (2026-10-30):** multi-connection engine, crash-safe resume, retries, fallbacks, speed
+  limits, checksums. D27–D34.
+- **M1 (2026-10-30):** errors, events, filename handling, probe, CLI. D20–D26.
+- **M0 (2026-10-30):** Python 3.12.10 at `D:\Tools\Python312`, skeleton, tooling, GPL-3.0, test
+  server, CI. D1–D19.
 
 ### Next
-- User reviews M3.
-- On approval: plan **M4 GUI v1** (needs approval for PySide6 and pytest-qt).
-
-### Open questions
-- None.
+- User runs the M4 manual checklist and reviews.
+- On approval: plan **M5 Tool manager + media engine** (yt-dlp/FFmpeg downloads need consent and
+  a folder).
 
 ### Environment notes
-- No `gh` CLI; pushes use plain `git` via Git Credential Manager. Pushing from a non-interactive
-  shell fails; push from the Terminal panel tab instead.
+- No `gh` CLI; pushes use plain `git` via Git Credential Manager from the Terminal panel tab.
 - Python launcher `py` is not used; always call `D:\Tools\Python312\python.exe` or `.venv`.
 - On Windows `time.monotonic()` ticks every ~15.6 ms; timing tests use `perf_counter` + slack.
-- A refused TCP connection takes ~2 s on Windows (SYN retries); avoid repeating them in tests.
+- A refused TCP connection takes ~2 s on Windows; avoid repeating them in tests.
 - PowerShell 5.1 `Set-Content -Encoding utf8` adds a BOM; prefer the Write/Edit tools.
 - The user's Downloads folder is `C:\Users\Hp\Downloads`; tests never write there.
+- Offscreen Qt has no usable fonts on Windows; use `scripts/screenshots.py` for visual checks.
