@@ -90,6 +90,20 @@ def _urls(value: Any) -> list[str]:
     return [_url(u) for u in value]
 
 
+def _link_list(value: Any) -> list[str]:
+    """Links found on a page: up to 5000, each a valid http(s) URL."""
+    if not isinstance(value, list) or not value or len(value) > 5000:
+        raise ProtocolError("urls must be a non-empty list of at most 5000 links")
+    return [_url(u) for u in value]
+
+
+def _optional_url(value: Any) -> str:
+    """Page/referrer URLs: empty is fine (e.g. no referrer), otherwise http(s) only."""
+    if value == "":
+        return value
+    return _url(value)
+
+
 _MEDIA_KEYS = frozenset({"quality", "container", "subtitles", "auto_subtitles", "embed_thumbnail"})
 
 
@@ -128,8 +142,33 @@ _ARGS: dict[str, dict[str, Callable[[Any], Any]]] = {
     "resume": {"job_id": _str(64)},
     "remove": {"job_id": _str(64), "delete_file": _bool},
     "activate": {"urls": _urls},
+    # From the browser extension (via the Native Messaging host):
+    "capture": {
+        "url": _url,
+        "page_url": _optional_url,
+        "page_title": _str(1000),
+        "referrer": _optional_url,
+        "user_agent": _str(1024),
+        "cookies": _str(65536),
+        "filename": _str(255),
+        "file_size": _int(-1, 2**50),
+        "media": _bool,
+    },  # fmt: skip
+    "capture_links": {
+        "urls": _link_list,
+        "page_url": _optional_url,
+        "page_title": _str(1000),
+        "referrer": _optional_url,
+    },  # fmt: skip
 }
-_REQUIRED = {"add": {"url"}, "pause": {"job_id"}, "resume": {"job_id"}, "remove": {"job_id"}}
+_REQUIRED = {
+    "add": {"url"},
+    "pause": {"job_id"},
+    "resume": {"job_id"},
+    "remove": {"job_id"},
+    "capture": {"url"},
+    "capture_links": {"urls"},
+}
 
 
 def decode_request(data: bytes) -> Request:
