@@ -50,6 +50,7 @@ CLI, MV3 browser extension via Native Messaging, yt-dlp/FFmpeg for media.
   run manually with `.venv\Scripts\python.exe -m tests.server`). Fixture: `server` in
   `tests/conftest.py`.
 - No internet in default tests; real-site tests use `@pytest.mark.live` (skipped by default).
+- pytest temp files go to `build/pytest-tmp` (`--basetemp`), never `%TEMP%` on C:.
 - Coverage target >= 85% for `engine/` and `core/`.
 - Never commit secrets, cookies, large binaries or generated fixtures (`tests/fixtures/`).
 

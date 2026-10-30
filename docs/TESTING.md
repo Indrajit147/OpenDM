@@ -15,6 +15,11 @@ Layout: `tests/unit/` (pure logic), `tests/integration/` (against the local test
 `tests/gui/` (pytest-qt, from M4), `tests/server/` (the test server), `tests/fixtures/`
 (generated, git-ignored).
 
+Temporary test files go to `build\pytest-tmp` (set by `--basetemp` in `pyproject.toml`), not to
+`%TEMP%` on C:. Pytest empties that folder at the start of each run. The full suite downloads
+about 250 MB there, including a 100 MiB kill-and-resume test that starts the CLI as a separate
+process.
+
 ## Local test server
 
 `tests/server/app.py`, stdlib only. Tests use the `server` fixture from `tests/conftest.py`
@@ -38,6 +43,8 @@ the module docstring, which the server also prints at startup.
 | Cookie-protected route | `/protected/a.bin` (cookie from `/set-cookie`) |
 | 404 / 500 | `/status/404`, `/status/500` |
 | HEAD fails / lies | `/file/a.bin?head=fail`, `head=lie`, `head=nolength` |
+| First N requests fail | `/file/a.bin?fail_first=3` |
+| Connection limit | `/file/a.bin?max_conn=4&retry_after=1` (503 beyond 4 parallel requests) |
 
 ## Manual checklist: M0
 
@@ -56,36 +63,48 @@ the module docstring, which the server also prints at startup.
 6. Press Ctrl+C in CMD. The server stops.
 7. Check the CI run at https://github.com/Indrajit147/OpenDM/actions is green.
 
-## Manual checklist: M1
+## Manual checklist: CLI (M1 + M2)
 
 Keep the test server from the M0 checklist running in one CMD window. In a second CMD window:
 
 ```
 cd /d D:\Projects\opendm
-mkdir build\m1
+mkdir build\manual
 ```
 
-1. Large file with checksum:
+1. 100 MiB over 8 connections:
    ```
-   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/big.bin?size=100M&seed=9" -o build\m1 --standalone
+   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/big.bin?size=100M&seed=9" -o build\manual --standalone
    ```
-   Expect a live progress line, then `Saved:`, `Size: 100.0 MiB` and
+   Expect a live line such as `45.0%  45.0 MiB / 100.0 MiB  ...  8 conn  ETA 0:01`, then
    `SHA-256: 3dc090164912e6fff05772f82494ba9ae508e44577f1fe4b8b3499dbae117684`.
 2. UTF-8 filename:
    ```
-   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/x?size=1K&cd=%E0%A6%B0%E0%A6%BF%E0%A6%AA%E0%A7%8B%E0%A6%B0%E0%A7%8D%E0%A6%9F.pdf" -o build\m1 --standalone
+   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/x?size=1K&cd=%E0%A6%B0%E0%A6%BF%E0%A6%AA%E0%A7%8B%E0%A6%B0%E0%A7%8D%E0%A6%9F.pdf" -o build\manual --standalone
    ```
-   Open `build\m1` in Explorer: the file is named `রিপোর্ট.pdf`.
+   In Explorer, `build\manual` contains `রিপোর্ট.pdf`.
 3. Run command 1 again. The new file is `big (1).bin`; `big.bin` is untouched.
-4. Ctrl+C: start a slow download and press Ctrl+C after a few seconds:
+4. Pause with Ctrl+C, then resume:
    ```
-   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/slow.bin?size=20M&rate=1M" -o build\m1 --standalone
+   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/slow.bin?size=50M&rate=1M" -o build\manual --standalone
    ```
-   Expect `cancelled`, and no `slow.bin.odm-part` in `build\m1`.
-5. Errors (each prints `error: ... [kind]`):
+   After ~5 s press Ctrl+C: expect `paused - run the same command again to resume`, and
+   `slow.bin.odm-part` + `slow.bin.odm-state` in `build\manual`. Run the same command again:
+   the percentage continues from where it stopped and the download completes.
+5. Kill and resume: start command 4 again with a new name (`slow2.bin` in the URL), and after a
+   few seconds end `opendm-cli.exe` in Task Manager (End task). Run the command again: it
+   resumes, and the final SHA-256 is printed.
+6. Speed limit: add `--limit 500K` to command 4 (new name `slow3.bin`): the speed shows about
+   `500.0 KiB/s`.
+7. Checksum: add `--sha256 0000000000000000000000000000000000000000000000000000000000000000` to
+   command 1: expect `[checksum_mismatch]` and exit code 1 (`echo %ERRORLEVEL%`).
+8. Errors (each prints `error: ... [kind]`):
    - `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/status/404" --standalone` -> `[not_found]`
-   - `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/a.bin?size=5M&drop_at=1000000" -o build\m1 --standalone`
-     -> `[network]` and `partial file kept: ...a.bin.odm-part`
    - `.venv\Scripts\opendm-cli.exe get "ftp://example.com/a.zip" --standalone` -> `[unsupported_scheme]`
-6. Real internet (optional): `.venv\Scripts\opendm-cli.exe get "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe.spdx.json" -o build\m1 --standalone`
-7. Clean up: `rmdir /s /q build\m1`.
+   - `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/c.bin?size=5M&etag_after=1" -o build\manual --standalone`
+     -> `[validator_changed]` with a `--restart` hint
+9. Fallbacks: `.../file/n.bin?size=20M&range=none` and `.../file/i.bin?size=20M&range=ignore`
+   both complete; the second prints no error (it switches to one connection).
+10. Real internet (optional):
+    `.venv\Scripts\opendm-cli.exe get "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe" -o build\manual --standalone --md5 5eddb0b6f12c852725de071ae681dde4`
+11. Clean up: `rmdir /s /q build\manual`.

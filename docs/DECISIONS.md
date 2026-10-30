@@ -120,7 +120,7 @@ specification (section 4); later entries were made during development.
   `Range` + `If-Range` (strong ETag, else Last-Modified). A 200 reply (no ranges, or validator
   changed) restarts from zero. An outside task cancellation (app exit) counts as a pause.
 
-## D21 CLI Ctrl+C (2026-10-30, approved)
+## D21 CLI Ctrl+C (2026-10-30, approved; superseded by D29 in M2)
 - **Choice:** Ctrl+C cancels and deletes the partial file (exit code 130); it cannot be resumed
   until M2 adds the sidecar. Failed downloads keep `.odm-part` and report its path.
 
@@ -149,3 +149,49 @@ specification (section 4); later entries were made during development.
 - **Choice:** components are limited to 255 UTF-16 units; full paths to 259 characters
   (including `.odm-part`) unless Windows long paths are enabled (registry `LongPathsEnabled`).
   Reserved device names get an underscore (`CON.txt` -> `CON_.txt`), including `COM¹`-style names.
+
+## D27 Crash-safe checkpoints (M2, 2026-10-30)
+- **Context:** the spec requires surviving app kill and reboot without corrupting data.
+- **Options:** state written with every chunk; periodic state without fsync; periodic
+  fsync-then-state.
+- **Choice:** every 2 s and on pause/exit/failure: snapshot per-segment `written` on the event
+  loop, fsync the `.odm-part`, then save `.odm-state` atomically (temp file, fsync, rename).
+  The state can only under-claim, so a kill costs at most ~2 s of re-download. Segments track
+  `received` (incl. buffered) separately from `written` (handed to the OS); splits use `received`.
+
+## D28 State file contents (M2, 2026-10-30, approved)
+- **Choice:** version, SHA-256 of the request URL, size, ETag, Last-Modified, accepts-ranges and
+  `[start, end, written]` per segment. No URL, cookies or headers (URLs often carry tokens).
+  A damaged or unknown-version file is ignored and the download starts over.
+
+## D29 Ctrl+C and re-running (M2, 2026-10-30, approved; replaces D21)
+- **Choice:** Ctrl+C pauses (checkpoint kept, exit 130). Running the same `get` with the same
+  URL and folder resumes in place (matched by URL hash and validators); `--restart` discards it;
+  `--continue FILE.odm-part` continues from a different (refreshed) URL.
+
+## D30 Checksum mismatch (M2, 2026-10-30, approved)
+- **Choice:** the file is renamed to its final name, the job is FAILED with CHECKSUM_MISMATCH and
+  exit code 1. Rejected alternative: leaving it as `.odm-part` (users think it vanished).
+
+## D31 Hash after download (M2, 2026-10-30, approved)
+- **Choice:** SHA-256 (and any user checksum) is computed by reading the finished file in a worker
+  thread (VERIFYING state). One code path for multi-segment and resumed downloads, and it proves
+  the bytes on disk, not the bytes we believe we wrote. Cost: ~1-2 s per GB.
+
+## D32 Fallbacks and validator changes (M2, 2026-10-30)
+- **Choice:** every ranged GET carries `If-Range`. A `200` reply is compared with the probe's
+  validators: changed -> VALIDATOR_CHANGED (progress kept until the user restarts); unchanged ->
+  the server ignores ranges -> one connection from the start (state file removed). A single
+  segment starting at 0 accepts a 200 as the whole body.
+
+## D33 Retries and connection limits (M2, 2026-10-30, approved)
+- **Choice:** per segment, 5 retries with full-jitter backoff 1 s -> 30 s; a server Retry-After
+  wins (capped at 60 s); the counter resets when a retry made progress. A 429/503 while other
+  connections are active is read as "too many connections": that segment is re-queued and the
+  download's connection count drops to the number still active. Cross-download per-host limits: M3.
+
+## D34 Speed limiting and writes (M2, 2026-10-30)
+- **Choice:** token bucket that starts empty, allows 0.1 s of burst and lets the balance go
+  negative (callers sleep off the debt). Each download has one; a global bucket can be shared.
+  Data is buffered up to 1 MiB per connection and written with positioned writes from a worker
+  thread (Windows has no `os.pwrite`, so seek+write is serialized by a lock).
