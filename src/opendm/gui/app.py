@@ -1,6 +1,7 @@
 """OpenDM desktop app: wires the engine thread, main window, tray, IPC and dialogs."""
 
 import argparse
+import asyncio
 import contextlib
 import dataclasses
 import datetime
@@ -126,6 +127,7 @@ class Application(QObject):
         self.updater = Updater()
         self.update_dialog: UpdateDialog | None = None
         self.run_after_quit: Path | None = None  # a verified installer, started after we exit
+        self.tools_moving = False  # yt-dlp/FFmpeg are being moved to their own folder
         defaults = AppSettings.defaults(
             downloads=self.downloads_folder, data_dir=data_dir, tools_dir=self.default_tools_dir
         )
@@ -243,23 +245,36 @@ class Application(QObject):
         old_default = same_folder(old, self.data_dir / "tools") and not same_folder(old, new)
         if self.tools_problem(old) is None and not old_default:
             return
-        moved = relocate_tools(old, new)
-        log.info("tools folder %s -> %s (moved: %s)", old, new, ", ".join(moved) or "nothing")
-        changes: dict[str, Any] = {"tools_dir": new}
-        for field, name in (("ytdlp_path", "yt-dlp"), ("ffmpeg_path", "ffmpeg")):
-            override = getattr(self.settings, field)
-            if override and name in moved:
-                with contextlib.suppress(ValueError):
-                    rest = Path(override).relative_to(old / name)
-                    changes[field] = str(new / name / rest)
-        self.save_settings(_with(self.settings, **changes))
-        if moved:
-            self.notify(
-                self.tr("Helper tools moved"),
-                self.tr("yt-dlp and FFmpeg now live in {0}, outside your download folder.").format(
-                    new
-                ),
-            )
+        # Copying ~230 MB across drives takes seconds: a worker thread does it (spec 7).
+        self.tools_moving = True
+        move = relocate_tools
+
+        def moved_ok(moved: list[str]) -> None:
+            self.tools_moving = False
+            log.info("tools folder %s -> %s (moved: %s)", old, new, ", ".join(moved) or "nothing")
+            changes: dict[str, Any] = {"tools_dir": new}
+            for field, name in (("ytdlp_path", "yt-dlp"), ("ffmpeg_path", "ffmpeg")):
+                override = getattr(self.settings, field)
+                if override and name in moved:
+                    with contextlib.suppress(ValueError):
+                        rest = Path(override).relative_to(old / name)
+                        changes[field] = str(new / name / rest)
+            self.save_settings(_with(self.settings, **changes))
+            if moved:
+                self.notify(
+                    self.tr("Helper tools moved"),
+                    self.tr("yt-dlp and FFmpeg now live in {0}, outside your download folder.")
+                    .format(new),
+                )  # fmt: skip
+
+        def failed(error: BaseException) -> None:
+            self.tools_moving = False
+            log.warning("moving the tools failed: %s", error)
+            self.save_settings(_with(self.settings, tools_dir=new))  # missing tools: asked later
+
+        self.client.call(
+            lambda m: asyncio.to_thread(move, old, new), on_done=moved_ok, on_error=failed
+        )
 
     def _apply_engine_settings(self) -> None:
         engine, limit = self.settings.engine_settings(), self.settings.global_limit

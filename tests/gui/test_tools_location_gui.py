@@ -41,7 +41,7 @@ def test_settings_refuse_a_tools_folder_in_downloads(qtbot, gui, monkeypatch) ->
     assert dialog.result() == QDialog.DialogCode.Accepted
 
 
-def test_tools_in_the_download_folder_are_moved_on_start(gui, tmp_path: Path) -> None:
+def test_tools_in_the_download_folder_are_moved_on_start(qtbot, gui, tmp_path: Path) -> None:
     downloads = gui.settings.download_dir
     old_tool = downloads / "yt-dlp" / "yt-dlp.exe"
     old_tool.parent.mkdir(parents=True)
@@ -53,7 +53,7 @@ def test_tools_in_the_download_folder_are_moved_on_start(gui, tmp_path: Path) ->
     ))  # fmt: skip
     notes: list[str] = []
     gui.notify = lambda title, text: notes.append(text)  # type: ignore[method-assign]
-    gui.relocate_tools_if_needed()
+    relocate(qtbot, gui)
     assert gui.settings.tools_dir == default
     assert (default / "yt-dlp" / "yt-dlp.exe").read_bytes() == b"ytdlp"
     assert gui.settings.ytdlp_path == str(default / "yt-dlp" / "yt-dlp.exe")
@@ -63,9 +63,9 @@ def test_tools_in_the_download_folder_are_moved_on_start(gui, tmp_path: Path) ->
     assert stored["tools_dir"] == str(default)
 
 
-def test_nothing_happens_when_the_tools_folder_is_fine(gui) -> None:
+def test_nothing_happens_when_the_tools_folder_is_fine(qtbot, gui) -> None:
     before = gui.settings
-    gui.relocate_tools_if_needed()
+    relocate(qtbot, gui)
     assert gui.settings == before
 
 
@@ -74,20 +74,41 @@ def test_settings_default_tools_folder_is_not_in_downloads(gui) -> None:
     assert gui.settings.tools_dir == gui.default_tools_dir
 
 
-def test_tools_in_the_old_default_follow_the_new_default(gui, tmp_path: Path) -> None:
+def test_tools_in_the_old_default_follow_the_new_default(qtbot, gui, tmp_path: Path) -> None:
     old = gui.data_dir / "tools"  # 0.7's default, on C:
     (old / "ffmpeg" / "bin").mkdir(parents=True)
     (old / "ffmpeg" / "bin" / "ffmpeg.exe").write_bytes(b"ffmpeg")
     gui.default_tools_dir = tmp_path / "Program" / "tools"  # as if installed on another drive
     gui.save_settings(dataclasses.replace(gui.settings, tools_dir=old))
-    gui.relocate_tools_if_needed()
+    relocate(qtbot, gui)
     assert gui.settings.tools_dir == tmp_path / "Program" / "tools"
     assert (tmp_path / "Program" / "tools" / "ffmpeg" / "bin" / "ffmpeg.exe").exists()
 
 
-def test_a_folder_the_user_chose_stays(gui, tmp_path: Path) -> None:
+def test_a_folder_the_user_chose_stays(qtbot, gui, tmp_path: Path) -> None:
     chosen = tmp_path / "MyTools"
     gui.save_settings(dataclasses.replace(gui.settings, tools_dir=chosen))
     gui.default_tools_dir = tmp_path / "Program" / "tools"
-    gui.relocate_tools_if_needed()
+    relocate(qtbot, gui)
     assert gui.settings.tools_dir == chosen
+
+
+def relocate(qtbot, gui) -> None:
+    gui.relocate_tools_if_needed()
+    qtbot.waitUntil(lambda: not gui.tools_moving, timeout=10_000)
+
+
+def test_moving_does_not_block_the_window(qtbot, gui, monkeypatch) -> None:
+    import time
+
+    def slow_move(old: Path, new: Path) -> list[str]:
+        time.sleep(1.0)
+        return []
+
+    monkeypatch.setattr("opendm.gui.app.relocate_tools", slow_move)
+    gui.save_settings(dataclasses.replace(gui.settings, tools_dir=gui.settings.download_dir))
+    started = time.perf_counter()
+    gui.relocate_tools_if_needed()
+    assert time.perf_counter() - started < 0.3 and gui.tools_moving
+    qtbot.waitUntil(lambda: not gui.tools_moving, timeout=10_000)
+    assert gui.settings.tools_dir == gui.default_tools_dir
