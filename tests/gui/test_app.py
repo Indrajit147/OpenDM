@@ -273,3 +273,35 @@ def test_close_goes_to_tray_when_available(qtbot, gui: GuiApp) -> None:
     assert gui.engine.thread is not None and gui.engine.thread.is_alive()
     gui.show_window()
     assert gui.window.isVisible()
+
+
+def test_name_column_gets_the_space(qtbot, gui: GuiApp, server: FaultServer) -> None:
+    # Regression (manual checklist): at the default window size the name was squeezed to
+    # "t...p" and a horizontal scrollbar pushed "Added" out of view.
+    from opendm.gui.models.downloads import NAME
+
+    gui.window.add_urls([server.url("/file/test-pack.zip?size=1000")], ask=False)
+    wait_state(qtbot, gui.window, "test-pack.zip", JobState.COMPLETED)
+    gui.window.resize(1000, 600)
+    qtbot.wait(100)
+    header = gui.window.table.horizontalHeader()
+    assert header.sectionSize(NAME) >= 150
+    assert not gui.window.table.horizontalScrollBar().isVisible()
+
+
+def test_wizard_warns_about_a_nearly_full_drive(qtbot, gui: GuiApp, tmp_path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from opendm.gui.dialogs import wizard as wizard_module
+
+    free = {"bytes": 5 * 1024**3}
+    monkeypatch.setattr(
+        wizard_module.shutil, "disk_usage", lambda p: SimpleNamespace(free=free["bytes"])
+    )
+    wizard = FirstRunWizard(dataclasses.replace(gui.settings, first_run_done=False))
+    qtbot.addWidget(wizard)
+    page = wizard.download_page
+    assert page.low_space and "nearly full" in page.space.text()
+    free["bytes"] = 200 * 1024**3
+    page.edit.setText(str(tmp_path / "D-drive"))
+    assert not page.low_space and "nearly full" not in page.space.text()
