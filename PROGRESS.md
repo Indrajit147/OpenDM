@@ -72,11 +72,16 @@
   The updater now falls back to the releases feed; the real feed finds rc.2 from rc.1. This
   is in the next build (rc.3), not in the installed rc.1.
 - Step 7 (in-app update rc.1 -> rc.2) worked: download, SHA-256 check, setup after exit,
-  restart, tools kept. But no setup tonight left an uninstall entry or browser keys. Cause:
-  the setups were started from the Claude app's Terminal panel, which keeps a private copy
-  of the registry (a test key written there is invisible outside; the setup log shows every
-  registry write succeeding). Not an OpenDM bug. Fix on the user's PC: quit OpenDM, run the
-  setup once from File Explorer, start OpenDM from the Start menu. TESTING.md now warns.
+  restart, tools kept.
+- Registry confusion, resolved: Claude's commands could not see OpenDM's uninstall entry or
+  browser keys after any install, although the setup log shows every registry write
+  succeeding. Programs started inside the Claude app (Claude's commands, its Terminal panel)
+  each see a private copy of the registry. After the user ran the setup from File Explorer,
+  OpenDM 0.8.0-rc.2 is listed in Windows Settings -> Apps and Settings -> Browser shows
+  Chrome and Edge set up for `D:\Softtt\OpenDM`. Not an OpenDM bug; TESTING.md says to check
+  registry results from outside the Claude app.
+- Still unreported from the M8 checklist: steps 4 (missing tools), 5 (Mix link), 8 (skip
+  this version) and 9 (portable).
 - On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes
