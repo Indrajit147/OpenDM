@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,6 +17,7 @@ from opendm.core.models import DownloadRequest, JobState
 from opendm.core.settings import EngineSettings, RetryPolicy
 from opendm.engine.http.download import HttpDownload
 from opendm.engine.http.resume import FileLock, load_state
+from opendm.engine.http.writer import PartFile
 from tests.server.app import COOKIE_NAME, COOKIE_VALUE, FaultServer, content_seed, content_sha256
 
 KIB = 1024
@@ -446,7 +448,8 @@ async def test_cancel_while_paused(server: FaultServer, tmp_path: Path) -> None:
 
 
 async def test_external_cancellation_checkpoints(server: FaultServer, tmp_path: Path) -> None:
-    dl, _ = make(server, "/file/a.bin?size=1M&rate=1M", tmp_path)
+    # ~1 s at 4 x 256 KiB/s, so it is reliably still running when cancelled at 0.4 s
+    dl, _ = make(server, "/file/a.bin?size=1M&rate=256K", tmp_path)
     task = asyncio.create_task(dl.run())
     await asyncio.sleep(0.4)
     task.cancel()
@@ -465,3 +468,29 @@ async def test_run_twice_concurrently_is_rejected(server: FaultServer, tmp_path:
         await dl.run()
     dl.cancel()
     await task
+
+
+async def test_pause_during_a_disk_write_counts_the_bytes(
+    server: FaultServer, tmp_path: Path, monkeypatch
+) -> None:
+    # Regression: a pause that landed while a buffer was being written in a worker
+    # thread left those bytes on disk but uncounted, so they were downloaded again.
+    writing = threading.Event()
+    original = PartFile.write_at
+
+    def slow_write(self: PartFile, offset: int, data: bytes) -> None:
+        writing.set()
+        time.sleep(0.3)
+        original(self, offset, data)
+
+    monkeypatch.setattr(PartFile, "write_at", slow_write)
+    dl, _ = make(server, "/file/w.bin?size=1M&rate=1M", tmp_path, settings(connections=1))
+    task = asyncio.create_task(dl.run())
+    deadline = time.monotonic() + 10
+    while not writing.is_set() and time.monotonic() < deadline:
+        await asyncio.sleep(0.005)
+    dl.pause()
+    assert await task is None
+    state = load_state(tmp_path / ("w.bin" + STATE_SUFFIX))
+    assert state is not None
+    assert state.written == dl.downloaded >= 64 * KIB
