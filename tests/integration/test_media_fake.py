@@ -115,6 +115,37 @@ async def test_download_and_arguments(tools: ToolPaths, tmp_path: Path) -> None:
     assert list((tmp_path / "dl").iterdir()) == [result.path]
 
 
+async def test_download_retries_without_cookies_when_they_hide_the_formats(
+    tools: ToolPaths, tmp_path: Path
+) -> None:
+    download, events = make(tools, tmp_path, "http://fake/cookieblock",
+                            MediaOptions(quality="audio-mp3"), cookies="SAPISID=x")  # fmt: skip
+    result = await download.run()
+    assert result is not None and result.path.suffix == ".mp3"
+    first, second = calls(tmp_path)
+    assert "--cookies" in first and "--cookies" not in second
+    assert not any(isinstance(e, Failed) for e in events)
+
+
+async def test_no_retry_when_formats_are_missing_without_cookies(
+    tools: ToolPaths, tmp_path: Path
+) -> None:
+    download, _ = make(tools, tmp_path, "http://fake/drm")
+    with pytest.raises(DownloadError):
+        await download.run()
+    assert len(calls(tmp_path)) == 1
+
+
+async def test_analyze_retries_without_cookies_when_only_images_are_offered(
+    tools: ToolPaths, tmp_path: Path
+) -> None:
+    request = DownloadRequest("http://fake/cookieblock", tmp_path, cookies="SAPISID=x")
+    info = await analyze(tools, request, temp_dir=tmp_path)
+    assert info.heights == [1080, 720]
+    first, second = calls(tmp_path)
+    assert "--cookies" in first and "--cookies" not in second
+
+
 async def test_user_filename_and_audio_only(tools: ToolPaths, tmp_path: Path) -> None:
     download, _ = make(tools, tmp_path, "http://fake/ok", MediaOptions(quality="audio-mp3"),
                        filename="My Song.mp3")  # fmt: skip

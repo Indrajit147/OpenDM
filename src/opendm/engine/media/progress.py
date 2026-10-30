@@ -91,6 +91,16 @@ class ProgressTracker:
 _HTTP_ERROR = re.compile(r"HTTP Error (\d{3})")
 
 
+def formats_hidden(stderr: str) -> bool:
+    """yt-dlp found the page but no audio or video in it.
+
+    Logged-in YouTube (browser cookies) needs a JavaScript runtime to unlock its streams;
+    without one only thumbnails are left, while the same video works without cookies.
+    """
+    lower = stderr.lower()
+    return "requested format is not available" in lower or "only images are available" in lower
+
+
 def classify_ytdlp_error(stderr: str) -> DownloadError:
     """Turn yt-dlp's last ERROR line into a DownloadError."""
     errors = [line for line in stderr.splitlines() if line.startswith("ERROR:")]

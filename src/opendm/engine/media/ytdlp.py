@@ -19,7 +19,7 @@ from opendm.engine.media.drm import (
 )
 from opendm.engine.media.formats import available_heights
 from opendm.engine.media.process import run_tool
-from opendm.engine.media.progress import classify_ytdlp_error
+from opendm.engine.media.progress import classify_ytdlp_error, formats_hidden
 
 ANALYZE_TIMEOUT = 180.0
 
@@ -132,21 +132,10 @@ async def analyze(
     use_system_proxy: bool = True,
 ) -> MediaInfo:
     """``yt-dlp -J --flat-playlist``: what is on the page. Raises PROTECTED for DRM."""
-    command = tools.ytdlp_command()
-    with temporary_cookie_file(request.cookies, request.url, temp_dir) as cookies:
-        args = [
-            *command, "-J", "--flat-playlist", "--no-warnings", "--encoding", "utf-8",
-            *request_args(request, proxy=proxy, use_system_proxy=use_system_proxy,
-                          cookie_file=cookies),
-            "--", request.url,
-        ]  # fmt: skip
-        code, out, err = await run_tool(args, timeout=ANALYZE_TIMEOUT)
-    if code != 0:
-        raise classify_ytdlp_error(err)
-    try:
-        info = json.loads(out)
-    except ValueError as exc:
-        raise DownloadError(ErrorKind.MEDIA, "yt-dlp returned unreadable data") from exc
+    info = await _page_info(tools, request, temp_dir, proxy, use_system_proxy, request.cookies)
+    if request.cookies and info.get("_type") != "playlist" and not has_streams(info):
+        # Browser cookies can hide the streams (see formats_hidden); try without them.
+        info = await _page_info(tools, request, temp_dir, proxy, use_system_proxy, None)
     if info_is_protected(info):
         raise DownloadError(ErrorKind.PROTECTED, PROTECTED_MESSAGE)
     # yt-dlp does not flag every DRM scheme (e.g. Widevine ContentProtection in DASH),
@@ -156,6 +145,42 @@ async def analyze(
     for manifest in sorted(manifests)[:MAX_MANIFEST_CHECKS]:
         await check_manifest(manifest, request, proxy=proxy, use_system_proxy=use_system_proxy)
     return summarize(info, request.url)
+
+
+async def _page_info(
+    tools: ToolPaths,
+    request: DownloadRequest,
+    temp_dir: Path,
+    proxy: str | None,
+    use_system_proxy: bool,
+    cookie_header: str | None,
+) -> dict[str, Any]:
+    with temporary_cookie_file(cookie_header, request.url, temp_dir) as cookies:
+        args = [
+            *tools.ytdlp_command(), "-J", "--flat-playlist", "--no-warnings",
+            "--encoding", "utf-8",
+            *request_args(request, proxy=proxy, use_system_proxy=use_system_proxy,
+                          cookie_file=cookies),
+            "--", request.url,
+        ]  # fmt: skip
+        code, out, err = await run_tool(args, timeout=ANALYZE_TIMEOUT)
+    if code != 0:
+        if cookie_header and formats_hidden(err):
+            return await _page_info(tools, request, temp_dir, proxy, use_system_proxy, None)
+        raise classify_ytdlp_error(err)
+    try:
+        return json.loads(out)
+    except ValueError as exc:
+        raise DownloadError(ErrorKind.MEDIA, "yt-dlp returned unreadable data") from exc
+
+
+def has_streams(info: dict[str, Any]) -> bool:
+    """True if any format has audio or video (not only thumbnails/storyboards)."""
+    formats = info.get("formats")
+    if not formats:
+        return bool(info.get("url"))  # a single direct format without a list
+    # Storyboards say "none" for both; formats without codec details count as media.
+    return any(f.get("vcodec") != "none" or f.get("acodec") != "none" for f in formats)
 
 
 MAX_MANIFEST_CHECKS = 5

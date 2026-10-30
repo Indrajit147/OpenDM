@@ -13,8 +13,10 @@ from opendm.engine.media.progress import (
     PROGRESS_MARK,
     ProgressTracker,
     classify_ytdlp_error,
+    formats_hidden,
     parse_line,
 )
+from opendm.engine.media.ytdlp import has_streams
 
 # --- formats ---------------------------------------------------------------------------------
 
@@ -216,3 +218,21 @@ def test_classify_ytdlp_error(stderr: str, kind: ErrorKind) -> None:
     assert error.kind is kind
     if stderr:
         assert "ERROR:" not in error.message
+
+
+# --- streams hidden by cookies -----------------------------------------------------------------
+
+
+def test_formats_hidden() -> None:
+    assert formats_hidden("WARNING: Only images are available for download.")
+    assert formats_hidden("ERROR: [youtube] x: Requested format is not available. Use ...")
+    assert not formats_hidden("ERROR: Unable to download webpage: timed out")
+
+
+def test_has_streams() -> None:
+    storyboard = {"format_id": "sb0", "vcodec": "none", "acodec": "none"}
+    assert not has_streams({"formats": [storyboard]})
+    assert has_streams({"formats": [storyboard, {"vcodec": "none", "acodec": "opus"}]})
+    assert has_streams({"formats": [{"format_id": "0", "url": "http://x/v"}]})  # no codec info
+    assert has_streams({"url": "http://x/v.mp4"})
+    assert not has_streams({})

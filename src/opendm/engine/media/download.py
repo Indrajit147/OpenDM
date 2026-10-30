@@ -28,6 +28,7 @@ from opendm.engine.media.progress import (
     PROGRESS_TEMPLATE,
     ProgressTracker,
     classify_ytdlp_error,
+    formats_hidden,
     parse_line,
 )
 from opendm.engine.media.ytdlp import (
@@ -128,6 +129,9 @@ class MediaDownload:
             with temporary_cookie_file(self.request.cookies, self.request.url,
                                        self._temp_dir) as cookies:  # fmt: skip
                 code, stderr = await self._run_process([*command, *self._args(cookies)])
+            if code != 0 and self.request.cookies and formats_hidden(stderr):
+                self._set_state(JobState.PROBING, "retrying without browser cookies")
+                code, stderr = await self._run_process([*command, *self._args(None)])
             if code != 0:
                 raise classify_ytdlp_error(stderr)
             return await self._finish()

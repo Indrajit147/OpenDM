@@ -6,6 +6,8 @@ spawn     like slow, but first starts a child process and writes its pid to chil
 drm       fails like yt-dlp on DRM-protected content
 netfail   fails with a network error
 playlist  -J returns a playlist of three entries
+cookieblock  with --cookies only images are offered (like logged-in YouTube without a
+          JavaScript runtime); without cookies it behaves like ok
 Every invocation's arguments are appended to $FAKE_YTDLP_LOG (JSON lines) if set.
 """
 
@@ -40,6 +42,16 @@ def main(argv: list[str]) -> int:
         return 1
     if mode == "netfail":
         print("ERROR: Unable to download webpage: <urlopen error timed out>", file=sys.stderr)
+        return 1
+    if mode == "cookieblock" and "--cookies" in argv:
+        if "-J" in argv:
+            print(json.dumps({"id": "abc", "title": "Fake Clip", "webpage_url": url,
+                              "formats": [{"format_id": "sb0", "vcodec": "none",
+                                           "acodec": "none", "ext": "mhtml"}]}))  # fmt: skip
+            return 0
+        print("WARNING: Only images are available for download.", file=sys.stderr)
+        print("ERROR: [fake] abc: Requested format is not available. Use --list-formats",
+              file=sys.stderr)  # fmt: skip
         return 1
     if "-J" in argv:
         if mode == "playlist":
