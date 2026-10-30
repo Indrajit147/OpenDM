@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from opendm.core.errors import DownloadError
-from opendm.core.models import JobState
+from opendm.core.models import AfterAction, JobState
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +42,24 @@ class Failed:
     partial_path: Path | None
 
 
-Event = Progress | StateChanged | Finished | Failed
+@dataclass(frozen=True, slots=True)
+class JobChanged:
+    """The stored job changed (added, updated or removed); reload it."""
+
+    job_id: str
+    removed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class QueueFinished:
+    """A queue ran out of work after running at least one job."""
+
+    queue_id: int
+    name: str
+    action: AfterAction
+
+
+Event = Progress | StateChanged | Finished | Failed | JobChanged | QueueFinished
 EventSink = Callable[[Event], None]
 
 
