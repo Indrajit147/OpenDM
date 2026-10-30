@@ -506,8 +506,18 @@ class HttpDownload:
         assert self._part is not None
         data = bytes(buffer)
         buffer.clear()
+        write = asyncio.ensure_future(
+            asyncio.to_thread(self._part.write_at, seg.start + seg.written, data)
+        )
         try:
-            await asyncio.to_thread(self._part.write_at, seg.start + seg.written, data)
+            await asyncio.shield(write)
+        except asyncio.CancelledError:
+            # Paused mid-write: the thread finishes anyway, so wait for it and count
+            # the bytes; otherwise they would be on disk but fetched again on resume.
+            with contextlib.suppress(OSError):
+                await write
+                seg.written += len(data)
+            raise
         except OSError as exc:
             raise error_from_os(exc) from exc
         seg.written += len(data)
