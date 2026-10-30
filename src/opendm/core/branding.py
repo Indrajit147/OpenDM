@@ -24,3 +24,4 @@ PIPE_NAME: Final = f"{APP_SLUG}-ipc"
 # On-disk download format (decision D8): "name.ext" + suffix.
 PARTIAL_SUFFIX: Final = ".odm-part"
 STATE_SUFFIX: Final = ".odm-state"
+LOCK_SUFFIX: Final = ".odm-lock"
