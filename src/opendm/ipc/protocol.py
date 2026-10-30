@@ -13,6 +13,7 @@ from typing import Any
 from opendm.core.branding import PIPE_NAME
 from opendm.core.errors import DownloadError
 from opendm.engine.http.transport import validate_url
+from opendm.engine.media.formats import MediaOptions
 
 VERSION = 1
 MAX_MESSAGE = 1024 * 1024
@@ -89,6 +90,22 @@ def _urls(value: Any) -> list[str]:
     return [_url(u) for u in value]
 
 
+_MEDIA_KEYS = frozenset({"quality", "container", "subtitles", "auto_subtitles", "embed_thumbnail"})
+
+
+def _media(value: Any) -> dict[str, Any]:
+    """yt-dlp options for a media download (validated by MediaOptions)."""
+    if not isinstance(value, dict) or set(value) - _MEDIA_KEYS:
+        raise ProtocolError(f"media must be an object with keys {sorted(_MEDIA_KEYS)}")
+    subtitles = value.get("subtitles", [])
+    if not isinstance(subtitles, list) or len(subtitles) > 50:
+        raise ProtocolError("media.subtitles must be a list")
+    try:
+        return MediaOptions.from_dict(value).to_dict()
+    except (TypeError, ValueError) as exc:
+        raise ProtocolError(f"media: {exc}") from None
+
+
 _ARGS: dict[str, dict[str, Callable[[Any], Any]]] = {
     "ping": {},
     "list": {},
@@ -105,6 +122,7 @@ _ARGS: dict[str, dict[str, Callable[[Any], Any]]] = {
         "user_agent": _str(1024),
         "cookies": _str(65536),
         "headers": _headers,
+        "media": _media,
     },
     "pause": {"job_id": _str(64)},
     "resume": {"job_id": _str(64)},

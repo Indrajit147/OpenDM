@@ -18,10 +18,16 @@ from opendm.core.checksum import parse_checksum
 from opendm.core.errors import DownloadError, ErrorKind
 from opendm.core.events import Event, Failed, Progress
 from opendm.core.models import DownloadRequest
+from opendm.core.paths import app_data_dir, default_exe_dir
 from opendm.core.settings import MAX_CONNECTIONS, EngineSettings
 from opendm.core.units import format_bytes, format_duration, parse_size
+from opendm.discovery.classify import parse_quality
 from opendm.engine.http.download import HttpDownload
+from opendm.engine.media.download import MediaDownload
+from opendm.engine.media.formats import CONTAINERS, MediaOptions
+from opendm.engine.media.ytdlp import ToolPaths
 from opendm.ipc import client as ipc_client
+from opendm.tools.manager import ToolManager
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE, EXIT_INTERRUPTED = 0, 1, 2, 130
 _USAGE_KINDS = frozenset({ErrorKind.INVALID_URL, ErrorKind.UNSUPPORTED_SCHEME})
@@ -86,7 +92,15 @@ def build_parser() -> argparse.ArgumentParser:
     get.add_argument("--referer")
     get.add_argument("--cookie", help="Cookie header value")
     get.add_argument("--insecure", action="store_true", help="skip TLS certificate checks")
-    get.add_argument("--media", action="store_true", help="download via yt-dlp (M5)")
+    get.add_argument("--media", action="store_true", help="video/audio from a web page (yt-dlp)")
+    get.add_argument(
+        "--quality", type=_arg(parse_quality), default="best",
+        help="with --media: best, 2160p...360p, mp3 or m4a (default best)",
+    )  # fmt: skip
+    get.add_argument("--container", choices=CONTAINERS, default="mp4", help="with --media")
+    get.add_argument(
+        "--tools-dir", type=Path, help="with --media --standalone: folder with yt-dlp and ffmpeg"
+    )
     get.add_argument("--standalone", action="store_true", help="run without the OpenDM app")
     get.add_argument("-q", "--quiet", action="store_true", help="no progress display")
 
@@ -133,6 +147,19 @@ class ConsoleProgress:
 _STANDALONE_ONLY = ("restart", "part_file", "insecure")
 
 
+def _media_options(args: argparse.Namespace) -> MediaOptions:
+    return MediaOptions(quality=args.quality, container=args.container)
+
+
+def media_tools(folder: Path | None) -> ToolPaths:
+    """yt-dlp and FFmpeg for standalone media downloads.
+
+    ``--tools-dir`` wins; otherwise the app's default tools folder is used.
+    """
+    base = folder or app_data_dir(default_exe_dir()) / "tools"
+    return ToolManager(base).paths()
+
+
 def _ipc(cmd: str, args: dict[str, object] | None = None) -> object:
     """One request to the running app; raises SystemExit with a message on failure."""
     try:
@@ -163,6 +190,8 @@ def _app_get(args: argparse.Namespace, checksum: str | None) -> int:
         "headers": dict(args.header) or None,
     }  # fmt: skip
     request.update({k: v for k, v in optional.items() if v is not None})
+    if args.media:
+        request["media"] = _media_options(args).to_dict()
     try:
         job = _ipc("add", request)
     except SystemExit as exc:
@@ -226,9 +255,16 @@ async def _get(args: argparse.Namespace) -> int:
             failed.append(event)
         progress(event)
 
-    download = HttpDownload(
-        request, settings=EngineSettings(connections=args.connections), sink=sink
-    )
+    settings = EngineSettings(connections=args.connections)
+    download: HttpDownload | MediaDownload
+    if args.media:
+        data_dir = app_data_dir(default_exe_dir())
+        download = MediaDownload(
+            request, _media_options(args), tools=media_tools(args.tools_dir),
+            temp_dir=data_dir / "tmp", settings=settings, sink=sink,
+        )  # fmt: skip
+    else:
+        download = HttpDownload(request, settings=settings, sink=sink)
     try:
         result = await download.run()
     except asyncio.CancelledError:
@@ -261,8 +297,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command != "get":
         return _app_command(args)
-    if args.media:
-        print("error: --media (yt-dlp) arrives in milestone M5.", file=sys.stderr)
+    if args.media and (args.restart or args.part_file or _checksum(args)):
+        print("error: --restart, --continue and checksums do not apply to --media",
+              file=sys.stderr)  # fmt: skip
         return EXIT_USAGE
     checksum = _checksum(args)
     if checksum:
