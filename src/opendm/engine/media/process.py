@@ -15,6 +15,9 @@ from ctypes import wintypes
 from pathlib import Path
 
 CREATE_NO_WINDOW = 0x08000000
+# yt-dlp -J prints a page's info as one line, often several MB for YouTube; asyncio's
+# default line limit is 64 KiB.
+LINE_LIMIT = 256 * 1024 * 1024
 _KILL_ON_JOB_CLOSE = 0x2000
 _EXTENDED_LIMIT_INFO = 9
 _PROCESS_SET_QUOTA = 0x0100
@@ -132,6 +135,7 @@ class ToolProcess:
             stderr=asyncio.subprocess.PIPE,
             cwd=str(cwd) if cwd else None,
             creationflags=flags,
+            limit=LINE_LIMIT,
         )
         job = None
         if sys.platform == "win32":
