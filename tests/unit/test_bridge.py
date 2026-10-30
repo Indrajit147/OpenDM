@@ -18,7 +18,13 @@ def progress(job_id: str, n: int) -> Progress:
 
 def test_coalesce_keeps_latest_progress_per_job_in_order() -> None:
     s = StateChanged("a", JobState.DOWNLOADING)
-    events: list[Event] = [progress("a", 1), progress("b", 1), s, progress("a", 2), progress("b", 5)]
+    events: list[Event] = [
+        progress("a", 1),
+        progress("b", 1),
+        s,
+        progress("a", 2),
+        progress("b", 5),
+    ]
     assert coalesce(events) == [s, progress("a", 2), progress("b", 5)]
     assert coalesce([]) == []
 

@@ -1,5 +1,12 @@
+import os
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
+
+# GUI tests run without a visible window (also on CI); set before Qt is imported.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Never talk to (or impersonate) a real OpenDM app running for this user.
+os.environ["OPENDM_IPC_NAME"] = f"opendm-tests-{uuid.uuid4().hex[:8]}"
 
 import pytest
 
