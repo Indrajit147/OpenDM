@@ -1,7 +1,6 @@
 """Downloads and link lists handed over by the browser extension (M6)."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 
 from opendm.core.models import DownloadRequest, JobState
 from opendm.gui.dialogs.start_download import StartDownloadDialog
@@ -18,23 +17,32 @@ def ipc(gui: GuiApp, cmd: str, args: dict) -> object:
     return gui.handle_ipc(request)
 
 
-def visible_start_dialog() -> StartDownloadDialog | None:
-    return next((w for w in QApplication.topLevelWidgets()
-                 if isinstance(w, StartDownloadDialog) and w.isVisible()), None)  # fmt: skip
+def record_start_dialogs(gui: GuiApp, monkeypatch) -> list[StartDownloadDialog]:
+    """The dialogs this test opens (other tests may leave theirs open on the shared app)."""
+    opened: list[StartDownloadDialog] = []
+    original = gui.window.open_start_dialog
+
+    def wrapper(*args, **kwargs) -> StartDownloadDialog:
+        opened.append(original(*args, **kwargs))
+        return opened[-1]
+
+    monkeypatch.setattr(gui.window, "open_start_dialog", wrapper)
+    return opened
 
 
 def test_capture_with_cookies_downloads_the_protected_file(
-    qtbot, gui: GuiApp, server: FaultServer
+    qtbot, gui: GuiApp, server: FaultServer, monkeypatch
 ) -> None:
+    opened = record_start_dialogs(gui, monkeypatch)
     url = server.url("/protected/members.zip?size=50000")
     reply = ipc(gui, "capture", {
         "url": url, "cookies": f"{COOKIE_NAME}={COOKIE_VALUE}",
         "referrer": server.url("/page"), "user_agent": "Mozilla/5.0 test",
     })  # fmt: skip
     assert reply == {"shown": "start"}
-    qtbot.waitUntil(lambda: visible_start_dialog() is not None, timeout=WAIT)
-    dialog = visible_start_dialog()
-    assert dialog is not None
+    assert len(opened) == 1
+    dialog = opened[0]
+    assert dialog.isVisible()
     qtbot.waitUntil(lambda: dialog.probe_result is not None, timeout=WAIT)  # probe sent the cookie
     assert dialog.name_edit.text() == "members.zip"
     dialog.start_button.click()
@@ -50,12 +58,14 @@ def test_capture_with_cookies_downloads_the_protected_file(
     assert job.request.user_agent == "Mozilla/5.0 test"
 
 
-def test_capture_without_the_cookie_fails_visibly(qtbot, gui: GuiApp, server: FaultServer) -> None:
+def test_capture_without_the_cookie_fails_visibly(
+    qtbot, gui: GuiApp, server: FaultServer, monkeypatch
+) -> None:
+    opened = record_start_dialogs(gui, monkeypatch)
     ipc(gui, "capture", {"url": server.url("/protected/members.zip?size=50000")})
-    qtbot.waitUntil(lambda: visible_start_dialog() is not None, timeout=WAIT)
-    dialog = visible_start_dialog()
-    qtbot.waitUntil(lambda: bool(dialog.error_label.text()), timeout=WAIT)  # type: ignore[union-attr]
-    assert "403" in dialog.error_label.text()  # type: ignore[union-attr]
+    dialog = opened[0]
+    qtbot.waitUntil(lambda: bool(dialog.error_label.text()), timeout=WAIT)
+    assert "403" in dialog.error_label.text()
 
 
 def test_capture_media_opens_the_video_flow(gui: GuiApp, monkeypatch) -> None:
