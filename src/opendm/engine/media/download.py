@@ -30,7 +30,12 @@ from opendm.engine.media.progress import (
     classify_ytdlp_error,
     parse_line,
 )
-from opendm.engine.media.ytdlp import ToolPaths, request_args
+from opendm.engine.media.ytdlp import (
+    ToolPaths,
+    check_manifest,
+    looks_like_manifest,
+    request_args,
+)
 
 _FINAL_STATES = frozenset({JobState.COMPLETED, JobState.CANCELLED})
 _LEFTOVER_SUFFIXES = (".part", ".ytdl", ".temp")
@@ -107,6 +112,13 @@ class MediaDownload:
         try:
             self._set_state(JobState.PROBING)
             command = self.tools.ytdlp_command()
+            if looks_like_manifest(self.request.url):
+                await check_manifest(
+                    self.request.url,
+                    self.request,
+                    proxy=self.settings.proxy,
+                    use_system_proxy=self.settings.use_system_proxy,
+                )
             if not self.tools.ffmpeg_available() and self._needs_ffmpeg():
                 raise DownloadError(ErrorKind.TOOL_MISSING, "FFmpeg is not installed")
             try:

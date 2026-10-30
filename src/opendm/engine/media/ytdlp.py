@@ -4,12 +4,19 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from opendm.core.errors import DownloadError, ErrorKind
 from opendm.core.models import DownloadRequest
 from opendm.core.redact import SECRET_HEADERS
+from opendm.engine.http.transport import HttpxTransport
 from opendm.engine.media.cookies import temporary_cookie_file
-from opendm.engine.media.drm import PROTECTED_MESSAGE, info_is_protected
+from opendm.engine.media.drm import (
+    PROTECTED_MESSAGE,
+    dash_is_protected,
+    hls_is_protected,
+    info_is_protected,
+)
 from opendm.engine.media.formats import available_heights
 from opendm.engine.media.process import run_tool
 from opendm.engine.media.progress import classify_ytdlp_error
@@ -142,7 +149,54 @@ async def analyze(
         raise DownloadError(ErrorKind.MEDIA, "yt-dlp returned unreadable data") from exc
     if info_is_protected(info):
         raise DownloadError(ErrorKind.PROTECTED, PROTECTED_MESSAGE)
+    # yt-dlp does not flag every DRM scheme (e.g. Widevine ContentProtection in DASH),
+    # so read the stream manifests ourselves.
+    manifests = {request.url} if looks_like_manifest(request.url) else set()
+    manifests |= {f["manifest_url"] for f in info.get("formats") or [] if f.get("manifest_url")}
+    for manifest in sorted(manifests)[:MAX_MANIFEST_CHECKS]:
+        await check_manifest(manifest, request, proxy=proxy, use_system_proxy=use_system_proxy)
     return summarize(info, request.url)
+
+
+MAX_MANIFEST_CHECKS = 5
+MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+_MANIFEST_TYPES = ("mpegurl", "dash+xml")
+
+
+def looks_like_manifest(url: str) -> bool:
+    return urlsplit(url).path.lower().endswith((".m3u8", ".mpd"))
+
+
+async def check_manifest(
+    url: str, request: DownloadRequest, *, proxy: str | None = None, use_system_proxy: bool = True
+) -> None:
+    """Fetch an HLS/DASH manifest and raise PROTECTED if it signals DRM.
+
+    Fetch problems are ignored here: yt-dlp reports them properly during the download.
+    """
+    transport = HttpxTransport(
+        verify=request.verify_tls, proxy=proxy, use_system_proxy=use_system_proxy
+    )
+    headers = request.request_headers()
+    try:
+        async with transport.stream("GET", url, headers) as resp:
+            content_type = resp.headers.get("content-type", "").lower()
+            if not 200 <= resp.status < 300:
+                return
+            if not (looks_like_manifest(url) or any(t in content_type for t in _MANIFEST_TYPES)):
+                return
+            body = bytearray()
+            async for chunk in resp.aiter_bytes():
+                body += chunk
+                if len(body) > MAX_MANIFEST_BYTES:
+                    return
+    except DownloadError:
+        return
+    finally:
+        await transport.aclose()
+    text = body.decode("utf-8", errors="replace")
+    if hls_is_protected(text) or dash_is_protected(text):
+        raise DownloadError(ErrorKind.PROTECTED, PROTECTED_MESSAGE)
 
 
 async def tool_version(command: list[str], flag: str = "--version") -> str | None:

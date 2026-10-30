@@ -96,7 +96,7 @@ class ToolManager:
         self.overrides[name] = path
         return ToolInfo(name, path, True, version)
 
-    # --- releases ----------------------------------------------------------------------------------
+    # --- releases ---------------------------------------------------------------------------------
 
     async def latest_ytdlp(self) -> Release:
         data = json.loads(await self._get_text(self.sources.ytdlp_api))
@@ -123,7 +123,7 @@ class ToolManager:
             return None
         return current, latest
 
-    # --- installing -----------------------------------------------------------------------------------
+    # --- installing -------------------------------------------------------------------------------
 
     async def install_ytdlp(self, progress: ProgressCallback | None = None) -> ToolInfo:
         release = await self.latest_ytdlp()
@@ -185,7 +185,7 @@ class ToolManager:
             raise DownloadError(ErrorKind.MEDIA, "the FFmpeg archive does not contain ffmpeg.exe")
         return written
 
-    # --- helpers -----------------------------------------------------------------------------------------
+    # --- helpers ----------------------------------------------------------------------------------
 
     @staticmethod
     def _verify(path: Path, expected: str, name: str) -> None:
