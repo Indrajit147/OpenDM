@@ -235,3 +235,28 @@ async def test_pause_also_stops_child_processes(tools: ToolPaths, tmp_path: Path
             break
         await asyncio.sleep(0.05)
     assert not process_alive(pid)  # the Job Object took the grandchild down too
+
+
+# --- a video inside a playlist ------------------------------------------------------------------
+
+
+async def test_video_in_a_playlist_is_analyzed_alone(tools: ToolPaths, tmp_path: Path) -> None:
+    url = "http://fake/playlist?v=abc&list=RDabc"
+    info = await analyze(tools, DownloadRequest(url, tmp_path), temp_dir=tmp_path)
+    assert not info.is_playlist and info.title == "Fake Clip"
+    assert info.playlist_url == url  # the picker can offer the whole playlist
+    assert "--no-playlist" in calls(tmp_path)[0]
+
+
+async def test_whole_playlist_on_request(tools: ToolPaths, tmp_path: Path) -> None:
+    url = "http://fake/playlist?v=abc&list=RDabc"
+    info = await analyze(tools, DownloadRequest(url, tmp_path), temp_dir=tmp_path, playlist=True)
+    assert info.is_playlist and len(info.entries) == 3 and info.playlist_url is None
+    assert "--no-playlist" not in calls(tmp_path)[0]
+
+
+async def test_a_plain_playlist_link_stays_a_playlist(tools: ToolPaths, tmp_path: Path) -> None:
+    info = await analyze(
+        tools, DownloadRequest("http://fake/playlist?list=PL1", tmp_path), temp_dir=tmp_path
+    )
+    assert info.is_playlist and info.playlist_url is None

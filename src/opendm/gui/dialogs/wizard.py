@@ -1,10 +1,11 @@
-"""First-run wizard: download folder, tools folder, browser extension notes."""
+"""First-run wizard: download folder, browser extension, update checks."""
 
 import dataclasses
 import shutil
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -98,28 +99,41 @@ class FirstRunWizard(QWizard):
                     "folder on another drive (for example D: or E:)."),
             settings.download_dir,
         )  # fmt: skip
-        self.tools_page = _FolderPage(
-            self.tr("Where should helper tools go?"),
-            self.tr("Later versions can download free tools (yt-dlp and FFmpeg) for video "
-                    "downloads. Nothing is downloaded without asking you first."),
-            settings.tools_dir,
-        )  # fmt: skip
+        # Helper tools (yt-dlp, FFmpeg) get their own folder next to OpenDM (D66): no question.
         browser = QWizardPage()
         browser.setTitle(self.tr("Browser integration"))
         note = QLabel(self.tr(
-            "A Chrome and Edge extension that sends downloads to OpenDM will come in a later "
-            "version. For now, copy a link and use Add URL, or drag links onto the window."
+            "The OpenDM extension for Chrome and Edge sends downloads and videos from the "
+            "browser to OpenDM. To set it up, open Settings -> Browser. You can also copy a "
+            "link and use Add URL, or drag links onto the window."
         ))  # fmt: skip
         note.setWordWrap(True)
         QVBoxLayout(browser).addWidget(note)
+        updates = QWizardPage()
+        updates.setTitle(self.tr("Updates"))
+        updates_note = QLabel(self.tr(
+            "OpenDM never contacts the internet on its own unless you allow it here. You can "
+            "change both later in Settings."
+        ))  # fmt: skip
+        updates_note.setWordWrap(True)
+        self.update_check = QCheckBox(self.tr("Check for a new OpenDM when it starts"))
+        self.tool_update_check = QCheckBox(
+            self.tr("Check weekly for a new yt-dlp (video downloads need it up to date)")
+        )
+        self.update_check.setChecked(settings.update_check)
+        self.tool_update_check.setChecked(settings.tool_update_check)
+        box = QVBoxLayout(updates)
+        for widget in (updates_note, self.update_check, self.tool_update_check):
+            box.addWidget(widget)
         self.addPage(self.download_page)
-        self.addPage(self.tools_page)
         self.addPage(browser)
+        self.addPage(updates)
 
     def result_settings(self) -> AppSettings:
         return dataclasses.replace(
             self._settings,
             download_dir=self.download_page.folder(),
-            tools_dir=self.tools_page.folder(),
+            update_check=self.update_check.isChecked(),
+            tool_update_check=self.tool_update_check.isChecked(),
             first_run_done=True,
         )

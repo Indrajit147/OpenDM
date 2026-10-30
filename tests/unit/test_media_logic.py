@@ -16,7 +16,7 @@ from opendm.engine.media.progress import (
     formats_hidden,
     parse_line,
 )
-from opendm.engine.media.ytdlp import has_streams
+from opendm.engine.media.ytdlp import has_streams, video_in_playlist
 
 # --- formats ---------------------------------------------------------------------------------
 
@@ -236,3 +236,11 @@ def test_has_streams() -> None:
     assert has_streams({"formats": [{"format_id": "0", "url": "http://x/v"}]})  # no codec info
     assert has_streams({"url": "http://x/v.mp4"})
     assert not has_streams({})
+
+
+def test_video_inside_a_playlist() -> None:
+    assert video_in_playlist("https://www.youtube.com/watch?v=Ks3&list=RDKs3&start_radio=1")
+    assert video_in_playlist("https://m.youtube.com/watch?list=PL1&v=x")
+    assert not video_in_playlist("https://www.youtube.com/watch?v=Ks3")
+    assert not video_in_playlist("https://www.youtube.com/playlist?list=PL1")
+    assert not video_in_playlist("https://example.com/watch?v=&list=")

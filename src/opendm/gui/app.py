@@ -1,6 +1,7 @@
 """OpenDM desktop app: wires the engine thread, main window, tray, IPC and dialogs."""
 
 import argparse
+import contextlib
 import dataclasses
 import datetime
 import sys
@@ -12,14 +13,21 @@ from PySide6.QtCore import QObject, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
+from opendm import __version__
 from opendm.core.app_settings import AppSettings
 from opendm.core.batch import parse_url_list
 from opendm.core.branding import APP_MUTEX, APP_NAME, APP_USER_MODEL_ID
 from opendm.core.bridge import EngineThread
 from opendm.core.errors import ErrorKind
-from opendm.core.events import Finished, PowerRequested, ToolProgress
+from opendm.core.events import Finished, PowerRequested, ToolProgress, ToolsMissing
 from opendm.core.models import AfterAction, DownloadRequest, Job
-from opendm.core.paths import app_data_dir, database_path, default_exe_dir, downloads_dir
+from opendm.core.paths import (
+    app_data_dir,
+    database_path,
+    default_exe_dir,
+    downloads_dir,
+    is_portable,
+)
 from opendm.core.redact import redact_url
 from opendm.core.settings import EngineSettings
 from opendm.core.windows import set_app_user_model_id
@@ -36,6 +44,7 @@ from opendm.gui.dialogs.media import MediaDialog
 from opendm.gui.dialogs.queues import QueuesDialog
 from opendm.gui.dialogs.settings import SettingsDialog
 from opendm.gui.dialogs.tools import ToolProgressDialog, ToolsConsentDialog, ToolsPanel
+from opendm.gui.dialogs.update import UpdateDialog
 from opendm.gui.dialogs.wizard import FirstRunWizard
 from opendm.gui.engine_client import EngineClient
 from opendm.gui.icons import app_icon
@@ -49,7 +58,14 @@ from opendm.ipc.protocol import Request
 from opendm.ipc.server import IpcServer
 from opendm.ipc.single_instance import InstanceLock
 from opendm.queue.scheduler import DownloadManager
+from opendm.tools.location import (
+    default_tools_dir,
+    relocate_tools,
+    same_folder,
+    tools_dir_problem,
+)
 from opendm.tools.manager import ToolInfo
+from opendm.updater.github_releases import AppUpdate, Updater, clean_old_installers
 
 
 def _relay_progress(dialog: ToolProgressDialog) -> Callable[[ToolProgress], None]:
@@ -78,6 +94,9 @@ class Application(QObject):
         data_dir: Path,
         *,
         downloads: Path | None = None,
+        tools_dir: Path | None = None,
+        updates_dir: Path | None = None,
+        portable: bool = False,
         ipc_name: str | None = None,
         engine_settings: EngineSettings | None = None,
         power: Callable[[AfterAction], None] = perform_power,
@@ -95,7 +114,17 @@ class Application(QObject):
         )
         self.engine.start()
         self.client = EngineClient(self.engine, self)
-        defaults = AppSettings.defaults(downloads=downloads or downloads_dir(), data_dir=data_dir)
+        self.data_dir = data_dir
+        self.downloads_folder = downloads or downloads_dir()  # Windows' Downloads folder
+        self.default_tools_dir = tools_dir or default_tools_dir(None, data_dir)
+        self.updates_dir = updates_dir or data_dir / "updates"  # installers from the updater
+        self.portable = portable
+        self.updater = Updater()
+        self.update_dialog: UpdateDialog | None = None
+        self.run_after_quit: Path | None = None  # a verified installer, started after we exit
+        defaults = AppSettings.defaults(
+            downloads=self.downloads_folder, data_dir=data_dir, tools_dir=self.default_tools_dir
+        )
         stored = self.engine.call(lambda m: m.settings_store.all()).result(10)
         self.settings = AppSettings.from_dict(stored, defaults)
         self._power = power
@@ -139,6 +168,7 @@ class Application(QObject):
 
         self.client.finished.connect(self._finished)
         self.client.powerRequested.connect(self._power_requested)
+        self.client.toolsMissing.connect(self._tools_missing)
 
         self.ipc = IpcServer(self.handle_ipc, self)
         self.ipc_listening = self.ipc.listen(ipc_name or ipc_client.default_name())
@@ -154,10 +184,13 @@ class Application(QObject):
                 self.save_settings(dialog.result_settings())
             else:
                 self.save_settings(_with(self.settings, first_run_done=True))
+        self.relocate_tools_if_needed()
+        clean_old_installers(self.updates_dir)
         hidden = (minimized or self.settings.start_minimized) and self.tray is not None
         if not hidden:
             self.show_window()
         self.check_tool_updates()
+        self.check_app_update()
         if urls:
             self.show_window()
             self.window.add_urls(list(urls))
@@ -167,7 +200,40 @@ class Application(QObject):
         self.window.raise_()
         self.window.activateWindow()
 
+    def notify(self, title: str, text: str) -> None:
+        if self.tray is not None:
+            self.tray.notify(title, text)
+
     # --- settings -----------------------------------------------------------------------------
+
+    def tools_problem(self, folder: Path, download_dir: Path | None = None) -> str | None:
+        return tools_dir_problem(
+            folder, download_dir or self.settings.download_dir, self.downloads_folder
+        )
+
+    def relocate_tools_if_needed(self) -> None:
+        """Tools in the download folder (0.7 allowed it) or in 0.7's default folder on C: move
+        to the new default (next to the programs). A folder the user chose elsewhere stays."""
+        old, new = self.settings.tools_dir, self.default_tools_dir
+        old_default = same_folder(old, self.data_dir / "tools") and not same_folder(old, new)
+        if self.tools_problem(old) is None and not old_default:
+            return
+        moved = relocate_tools(old, new)
+        changes: dict[str, Any] = {"tools_dir": new}
+        for field, name in (("ytdlp_path", "yt-dlp"), ("ffmpeg_path", "ffmpeg")):
+            override = getattr(self.settings, field)
+            if override and name in moved:
+                with contextlib.suppress(ValueError):
+                    rest = Path(override).relative_to(old / name)
+                    changes[field] = str(new / name / rest)
+        self.save_settings(_with(self.settings, **changes))
+        if moved:
+            self.notify(
+                self.tr("Helper tools moved"),
+                self.tr("yt-dlp and FFmpeg now live in {0}, outside your download folder.").format(
+                    new
+                ),
+            )
 
     def _apply_engine_settings(self) -> None:
         engine, limit = self.settings.engine_settings(), self.settings.global_limit
@@ -210,7 +276,14 @@ class Application(QObject):
         )
         self.tools_panel = panel
         dialog = SettingsDialog(
-            self.settings, self.window.categories, self.window, panel, self._browser_panel()
+            self.settings,
+            self.window.categories,
+            self.window,
+            panel,
+            self._browser_panel(),
+            tools_check=self.tools_problem,
+            version=__version__,
+            on_check_now=lambda: self.check_app_update(manual=True),
         )
         dialog.accepted.connect(lambda: self._settings_accepted(dialog))
         dialog.setModal(True)
@@ -231,17 +304,31 @@ class Application(QObject):
 
         self.client.call(lambda m: m.tool_status(), on_done=checked, on_error=self._show_error)
 
-    def ask_for_tools(self, missing: list[str], then: Callable[[], None]) -> None:
+    def ask_for_tools(self, missing: list[str], then: Callable[[], None] | None) -> None:
         def show(sizes: dict[str, int | None] | BaseException) -> None:
             known = sizes if isinstance(sizes, dict) else {}
-            dialog = ToolsConsentDialog(missing, self.settings.tools_dir, known, self.window)
+            dialog = ToolsConsentDialog(
+                missing, self.settings.tools_dir, known, self.window, check=self.tools_problem
+            )
             dialog.accepted.connect(lambda: self._consented(dialog, then))
             self.consent_dialog = dialog
             dialog.show()
 
         self.client.call(lambda m: m.tool_downloads(), on_done=show, on_error=show)
 
-    def _consented(self, dialog: ToolsConsentDialog, then: Callable[[], None]) -> None:
+    def _tools_missing(self, event: ToolsMissing) -> None:
+        """Video/audio jobs are waiting for the tools: offer to download them (once)."""
+        if self.consent_dialog is not None and self.consent_dialog.isVisible():
+            return
+        self.notify(
+            self.tr("Video downloads are waiting"),
+            self.tr("{0} is missing. OpenDM can download it again.").format(
+                " and ".join("FFmpeg" if n == "ffmpeg" else n for n in event.names)
+            ),
+        )
+        self.ask_for_tools(list(event.names), then=None)
+
+    def _consented(self, dialog: ToolsConsentDialog, then: Callable[[], None] | None) -> None:
         folder = dialog.folder()
         if folder != self.settings.tools_dir:
             self.save_settings(_with(self.settings, tools_dir=folder))
@@ -279,7 +366,7 @@ class Application(QObject):
             lambda m: m.use_existing_tool(name, path), on_done=chosen, on_error=self._show_error
         )
 
-    def _analyze(self, request: DownloadRequest) -> None:
+    def _analyze(self, request: DownloadRequest, *, playlist: bool = False) -> None:
         busy = ToolProgressDialog(self.window)
         busy.setWindowTitle(self.tr("Video or audio"))
         busy.show_step(self.tr("Looking for video and audio on the page..."))
@@ -294,7 +381,9 @@ class Application(QObject):
             busy.close()
             self._media_failed(request, error)
 
-        self.client.call(lambda m: m.analyze_media(request), on_done=done, on_error=failed)
+        self.client.call(
+            lambda m: m.analyze_media(request, playlist=playlist), on_done=done, on_error=failed
+        )
 
     def _pick_media(self, request: DownloadRequest, info: MediaInfo) -> MediaDialog:
         dialog = MediaDialog(
@@ -302,6 +391,12 @@ class Application(QObject):
             queues=self.window.queues, parent=self.window,
         )  # fmt: skip
         dialog.accepted.connect(lambda: self._add_media(request, dialog))
+
+        def whole_playlist() -> None:
+            dialog.close()
+            self._analyze(request, playlist=True)
+
+        dialog.wholePlaylistRequested.connect(whole_playlist)
         self.media_dialog = dialog
         dialog.show()
         return dialog
@@ -357,6 +452,78 @@ class Application(QObject):
                 )
 
         self.client.call(lambda m: m.check_ytdlp_update(), on_done=done, on_error=lambda e: None)
+
+    # --- app updates (spec 6.9) -------------------------------------------------------------
+
+    def check_app_update(self, *, manual: bool = False) -> None:
+        """Ask GitHub for a newer OpenDM: at startup if turned on, or from "Check now"."""
+        if not (manual or self.settings.update_check):
+            return
+        prereleases = self.settings.include_prereleases
+        updater = self.updater
+
+        def done(update: AppUpdate | None) -> None:
+            if update is None:
+                if manual:
+                    QMessageBox.information(
+                        self.window, APP_NAME,
+                        self.tr("You have the latest version ({0}).").format(__version__),
+                    )  # fmt: skip
+                return
+            if not manual and str(update.version) == self.settings.skipped_version:
+                return
+            self.show_update(update)
+
+        def failed(error: BaseException) -> None:
+            if manual:  # a startup check fails quietly (offline, GitHub busy)
+                message = getattr(error, "message", None) or str(error)
+                QMessageBox.warning(
+                    self.window, APP_NAME,
+                    self.tr("Could not check for updates: {0}").format(message),
+                )  # fmt: skip
+
+        self.client.call(
+            lambda m: updater.check(__version__, prereleases=prereleases),
+            on_done=done, on_error=failed,
+        )  # fmt: skip
+
+    def show_update(self, update: AppUpdate) -> UpdateDialog:
+        if self.update_dialog is not None:
+            self.update_dialog.close()
+        dialog = UpdateDialog(update, __version__, portable=self.portable, parent=self.window)
+        dialog.installRequested.connect(lambda: self._install_update(dialog))
+        dialog.skipRequested.connect(
+            lambda: self.save_settings(_with(self.settings, skipped_version=str(update.version)))
+        )
+        dialog.pageRequested.connect(
+            lambda: QDesktopServices.openUrl(QUrl(update.page_url or self.updater.source.page_url))
+        )
+        self.update_dialog = dialog
+        self.show_window()
+        dialog.show()
+        return dialog
+
+    def _install_update(self, dialog: UpdateDialog) -> None:
+        update, folder, updater = dialog.update_info, self.updates_dir, self.updater
+        dialog.set_busy(self.tr("Downloading the installer..."))
+
+        def downloaded(path: Path) -> None:
+            # The installer replaces our files, so it runs after OpenDM has exited.
+            self.run_after_quit = path
+            dialog.accept()
+            self.quit()
+
+        def failed(error: BaseException) -> None:
+            dialog.set_idle()
+            message = getattr(error, "message", None) or str(error)
+            QMessageBox.warning(
+                dialog, APP_NAME, self.tr("The update was not installed: {0}").format(message)
+            )
+
+        self.client.call(
+            lambda m: updater.download(update, folder, dialog.progressed.emit),
+            on_done=downloaded, on_error=failed,
+        )  # fmt: skip
 
     def _settings_accepted(self, dialog: SettingsDialog) -> None:
         self.save_settings(dialog.result_settings())
@@ -567,7 +734,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     qapp.setApplicationName(APP_NAME)
     qapp.setWindowIcon(app_icon())
     qapp.setQuitOnLastWindowClosed(False)
-    app = Application(qapp, app_data_dir(default_exe_dir()))
+    exe_dir = default_exe_dir()
+    data_dir = app_data_dir(exe_dir)
+    portable = exe_dir is not None and is_portable(exe_dir)
+    app = Application(
+        qapp, data_dir, tools_dir=default_tools_dir(exe_dir, data_dir), portable=portable,
+        # Installed: next to the programs (the drive the user chose), removed on uninstall.
+        updates_dir=exe_dir / "updates" if exe_dir is not None and not portable else None,
+    )  # fmt: skip
     app.start(urls=urls, minimized=args.minimized)
     try:
         return qapp.exec()
@@ -575,6 +749,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         app.shutdown()
         running.release()
         lock.release()
+        if app.run_after_quit is not None:
+            run_installer(app.run_after_quit)
+
+
+def run_installer(path: Path) -> None:
+    """Start the verified installer once OpenDM has released its mutex (it is not silent)."""
+    import subprocess
+
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+        subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+    )
+    subprocess.Popen([str(path)], creationflags=flags, close_fds=True)
 
 
 if __name__ == "__main__":

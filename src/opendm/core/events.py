@@ -84,6 +84,13 @@ class ToolProgress:
     total: int | None
 
 
+@dataclass(frozen=True, slots=True)
+class ToolsMissing:
+    """Video/audio jobs are waiting because these tools are not installed (asked once)."""
+
+    names: tuple[str, ...]
+
+
 Event = (
     Progress
     | StateChanged
@@ -94,6 +101,7 @@ Event = (
     | JobSnapshot
     | PowerRequested
     | ToolProgress
+    | ToolsMissing
 )
 EventSink = Callable[[Event], None]
 

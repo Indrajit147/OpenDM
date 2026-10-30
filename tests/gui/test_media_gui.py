@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox
 
 from opendm.core.models import DownloadRequest, JobState
+from opendm.engine.media.formats import MediaOptions
 from opendm.engine.media.ytdlp import ToolPaths
 from opendm.gui import app as app_module
 from opendm.ipc import client
@@ -240,3 +241,39 @@ def test_ipc_media_add(qtbot, gui: GuiApp, tmp_path: Path) -> None:
     job = gui.window.model.job(added["id"])
     assert job is not None and job.kind == "media"
     assert job.request.dest_dir == tmp_path / "dl" / "Audio"
+
+
+def test_missing_tools_are_offered_once(qtbot, gui: GuiApp, tmp_path: Path, fake_release) -> None:
+    use_fake_tools(gui, tmp_path, fake_release, installed=False)  # yt-dlp stand-in, no FFmpeg
+    jobs = [
+        gui.client.call(
+            lambda m, n=n: m.add_media(
+                DownloadRequest(f"http://fake/ok/{n}", tmp_path / "dl"),
+                MediaOptions(quality="audio-mp3"),
+            )
+        ).result(5)
+        for n in range(3)
+    ]
+    qtbot.waitUntil(lambda: gui.consent_dialog is not None, timeout=WAIT)
+    first = gui.consent_dialog
+    assert first is not None and first.missing == ["ffmpeg"]
+    qtbot.wait(300)
+    assert gui.consent_dialog is first  # one question, not one per download
+    stored = [gui.client.call(lambda m, j=j: m.jobs.get(j.id)).result(5) for j in jobs]
+    assert all(j.state is JobState.QUEUED and "FFmpeg" in j.message for j in stored)
+    first.reject()
+
+
+def test_video_in_a_playlist_offers_the_whole_list(qtbot, gui: GuiApp, tmp_path: Path) -> None:
+    use_fake_tools(gui, tmp_path)
+    url = "http://fake/playlist?v=abc&list=RD1"
+    gui.open_media(DownloadRequest(url, gui.settings.download_dir))
+    qtbot.waitUntil(lambda: gui.media_dialog is not None, timeout=WAIT)
+    single = gui.media_dialog
+    assert single is not None and not single.info.is_playlist
+    assert single.playlist_button.isVisible()
+    single.playlist_button.click()
+    qtbot.waitUntil(lambda: gui.media_dialog is not single, timeout=WAIT)
+    whole = gui.media_dialog
+    assert whole is not None and whole.info.is_playlist and whole.entries.count() == 3
+    assert not single.isVisible() and not whole.playlist_button.isVisible()

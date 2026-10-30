@@ -38,6 +38,9 @@ class AppSettings:
     ffmpeg_path: str = ""  # override; empty = <tools_dir>\ffmpeg\bin\ffmpeg.exe
     tool_update_check: bool = False  # weekly yt-dlp update check (opt-in, spec 6.8)
     last_tool_check: str = ""  # ISO date of the last check
+    update_check: bool = False  # check GitHub for a newer OpenDM at startup (opt-in, spec 6.9)
+    include_prereleases: bool = False  # also offer test versions (0.8.0-rc.1)
+    skipped_version: str = ""  # "Skip this version": the startup check stays quiet about it
 
     def tool_overrides(self) -> dict[str, Path]:
         overrides = {}
@@ -48,8 +51,10 @@ class AppSettings:
         return overrides
 
     @classmethod
-    def defaults(cls, *, downloads: Path, data_dir: Path) -> "AppSettings":
-        return cls(download_dir=downloads, tools_dir=data_dir / "tools")
+    def defaults(
+        cls, *, downloads: Path, data_dir: Path, tools_dir: Path | None = None
+    ) -> "AppSettings":
+        return cls(download_dir=downloads, tools_dir=tools_dir or data_dir / "tools")
 
     def to_dict(self) -> dict[str, Any]:
         out = dataclasses.asdict(self)

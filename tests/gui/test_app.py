@@ -305,3 +305,17 @@ def test_wizard_warns_about_a_nearly_full_drive(qtbot, gui: GuiApp, tmp_path, mo
     free["bytes"] = 200 * 1024**3
     page.edit.setText(str(tmp_path / "D-drive"))
     assert not page.low_space and "nearly full" not in page.space.text()
+
+
+def test_status_count_follows_removals(qtbot, gui: GuiApp, server: FaultServer) -> None:
+    from opendm.core.models import DownloadRequest
+
+    def add(m):
+        return m.add(DownloadRequest(server.url("/file/a.bin?size=1K"), gui.settings.download_dir),
+                     start=False)  # fmt: skip
+
+    jobs = [gui.client.call(add).result(5) for _ in range(2)]
+    qtbot.waitUntil(lambda: "2 total" in gui.window.count_label.text(), timeout=5000)
+    gui.client.call(lambda m: m.remove(jobs[0].id)).result(5)
+    qtbot.waitUntil(lambda: gui.window.model.rowCount() == 1, timeout=5000)
+    assert "1 total" in gui.window.count_label.text()

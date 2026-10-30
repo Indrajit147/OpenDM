@@ -15,15 +15,14 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from opendm.core.errors import DownloadError, ErrorKind, error_from_status
+from opendm.core.errors import DownloadError, ErrorKind
+from opendm.engine.http.simple import ProgressCallback, content_length, fetch_file, get_text
 from opendm.engine.http.transport import HttpxTransport, Transport
 from opendm.engine.media.ytdlp import ToolPaths, tool_version
 from opendm.tools.sources import YTDLP_ASSET, YTDLP_SUMS, Sources, parse_sums
 
-ProgressCallback = Callable[[int, int | None], None]
 VersionProbe = Callable[[Path], Awaitable[str | None]]
 _WANTED = ("ffmpeg.exe", "ffprobe.exe")
-MAX_TEXT = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -213,45 +212,10 @@ class ToolManager:
             raise DownloadError(ErrorKind.MEDIA, f"the new {name} does not run; kept the old one")
 
     async def _get_text(self, url: str) -> str:
-        transport = self._transport_factory()
-        try:
-            async with transport.stream("GET", url) as resp:
-                if not 200 <= resp.status < 300:
-                    raise error_from_status(resp.status)
-                body = bytearray()
-                async for chunk in resp.aiter_bytes():
-                    body += chunk
-                    if len(body) > MAX_TEXT:
-                        raise DownloadError(ErrorKind.HTTP_CLIENT, "response too large")
-                return body.decode("utf-8", errors="replace")
-        finally:
-            await transport.aclose()
+        return await get_text(self._transport_factory(), url)
 
     async def _content_length(self, url: str) -> int | None:
-        transport = self._transport_factory()
-        try:
-            async with transport.stream("HEAD", url) as resp:
-                value = resp.headers.get("content-length")
-                return int(value) if value and value.isdigit() else None
-        except DownloadError:
-            return None
-        finally:
-            await transport.aclose()
+        return await content_length(self._transport_factory(), url)
 
     async def _fetch(self, url: str, dest: Path, progress: ProgressCallback | None) -> None:
-        transport = self._transport_factory()
-        try:
-            async with transport.stream("GET", url) as resp:
-                if not 200 <= resp.status < 300:
-                    raise error_from_status(resp.status)
-                length = resp.headers.get("content-length")
-                total = int(length) if length and length.isdigit() else None
-                done = 0
-                with open(dest, "wb") as f:
-                    async for chunk in resp.aiter_bytes():
-                        await asyncio.to_thread(f.write, chunk)
-                        done += len(chunk)
-                        if progress is not None:
-                            progress(done, total)
-        finally:
-            await transport.aclose()
+        await fetch_file(self._transport_factory(), url, dest, progress)

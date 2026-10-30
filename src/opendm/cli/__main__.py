@@ -27,6 +27,7 @@ from opendm.engine.media.download import MediaDownload
 from opendm.engine.media.formats import CONTAINERS, MediaOptions
 from opendm.engine.media.ytdlp import ToolPaths
 from opendm.ipc import client as ipc_client
+from opendm.tools.location import default_tools_dir
 from opendm.tools.manager import ToolManager
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE, EXIT_INTERRUPTED = 0, 1, 2, 130
@@ -156,7 +157,8 @@ def media_tools(folder: Path | None) -> ToolPaths:
 
     ``--tools-dir`` wins; otherwise the app's default tools folder is used.
     """
-    base = folder or app_data_dir(default_exe_dir()) / "tools"
+    exe_dir = default_exe_dir()
+    base = folder or default_tools_dir(exe_dir, app_data_dir(exe_dir))
     return ToolManager(base).paths()
 
 

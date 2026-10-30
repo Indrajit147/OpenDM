@@ -147,6 +147,7 @@ class MainWindow(QMainWindow):
         client.jobUpdated.connect(self.model.update_job)
         client.jobUpdated.connect(lambda _: self._update_status())
         client.jobRemoved.connect(self.model.remove_job)
+        client.jobRemoved.connect(lambda _: self._update_status())
         client.progress.connect(self._on_progress)
         self.reload()
 

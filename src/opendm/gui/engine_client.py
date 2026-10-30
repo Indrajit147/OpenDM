@@ -20,6 +20,7 @@ from opendm.core.events import (
     QueueFinished,
     StateChanged,
     ToolProgress,
+    ToolsMissing,
 )
 from opendm.queue.scheduler import DownloadManager
 
@@ -36,6 +37,7 @@ class EngineClient(QObject):
     queueFinished = Signal(object)  # QueueFinished
     powerRequested = Signal(object)  # PowerRequested
     toolProgress = Signal(object)  # ToolProgress
+    toolsMissing = Signal(object)  # ToolsMissing
     _done = Signal(object, object, object)  # callback, result, error
 
     def __init__(self, engine: EngineThread, parent: QObject | None = None) -> None:
@@ -68,6 +70,8 @@ class EngineClient(QObject):
                 self.powerRequested.emit(event)
             elif isinstance(event, ToolProgress):
                 self.toolProgress.emit(event)
+            elif isinstance(event, ToolsMissing):
+                self.toolsMissing.emit(event)
 
     def call(
         self,

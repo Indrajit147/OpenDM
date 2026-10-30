@@ -41,9 +41,12 @@ class ToolsConsentDialog(QDialog):
         folder: Path,
         sizes: dict[str, int | None] | None = None,
         parent: QWidget | None = None,
+        *,
+        check: Callable[[Path], str | None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Download helper tools?"))
+        self._check = check
         self.missing = missing
         intro = QLabel(self.tr(
             "Downloading video and audio needs free helper programs that OpenDM does not "
@@ -72,6 +75,10 @@ class ToolsConsentDialog(QDialog):
         layout.addLayout(row)
         self.space = QLabel()
         layout.addWidget(self.space)
+        self.problem = QLabel()
+        self.problem.setWordWrap(True)
+        self.problem.setStyleSheet("color: #c0392b;")
+        layout.addWidget(self.problem)
         buttons = QDialogButtonBox()
         self.download_button = buttons.addButton(
             self.tr("Download"), QDialogButtonBox.ButtonRole.AcceptRole
@@ -92,7 +99,9 @@ class ToolsConsentDialog(QDialog):
 
     def _update_space(self) -> None:
         text = self.folder_edit.text().strip()
-        self.download_button.setEnabled(bool(text))
+        problem = self._check(Path(text)) if text and self._check is not None else None
+        self.problem.setText(problem or "")
+        self.download_button.setEnabled(bool(text) and problem is None)
         if text:
             self.space.setText(self.tr("Free space there: {0}").format(free_space_text(Path(text))))
 

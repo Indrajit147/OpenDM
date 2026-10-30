@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 from opendm.core.branding import PARTIAL_SUFFIX
-from opendm.core.errors import DownloadError
+from opendm.core.errors import DownloadError, ErrorKind
 from opendm.core.events import (
     Event,
     EventSink,
@@ -26,6 +26,7 @@ from opendm.core.events import (
     QueueFinished,
     StateChanged,
     ToolProgress,
+    ToolsMissing,
     discard,
 )
 from opendm.core.models import (
@@ -61,6 +62,7 @@ from opendm.storage.repositories import (
 from opendm.tools.manager import ToolInfo, ToolManager
 
 StopReason = Literal["user", "queue", "shutdown", "remove"]
+WAITING_FOR_TOOLS = "waiting for {0} (Settings -> Tools)"
 _LIVE_STATES = frozenset({JobState.PROBING, JobState.DOWNLOADING, JobState.VERIFYING})
 
 
@@ -114,6 +116,7 @@ class DownloadManager:
         self._ran: dict[int, bool] = {}  # queue ran a job during this activation
         self._windows: dict[int, bool] = {}
         self._background: set[asyncio.Task[None]] = set()
+        self._tools_reported = False  # ToolsMissing is sent once until the tools are back
 
     # --- lifecycle -------------------------------------------------------------------------------
 
@@ -174,6 +177,17 @@ class DownloadManager:
     def set_tools(self, tools: ToolPaths) -> None:
         """yt-dlp/FFmpeg locations for media jobs started from now on."""
         self.tools = tools
+        if not self.missing_tools():
+            self._tools_reported = False
+            self._pump()  # media jobs waiting for the tools can start now
+
+    def missing_tools(self) -> tuple[str, ...]:
+        if self.tools.command:  # tests replace yt-dlp with a script
+            ytdlp = True
+        else:
+            ytdlp = self.tools.ytdlp is not None and self.tools.ytdlp.is_file()
+        names = () if ytdlp else ("yt-dlp",)
+        return names + (() if self.tools.ffmpeg_available() else ("ffmpeg",))
 
     def configure_tools(self, folder: Path, overrides: dict[str, Path]) -> ToolManager:
         self.tool_manager = ToolManager(folder, overrides=overrides)
@@ -225,7 +239,7 @@ class DownloadManager:
             self.tool_manager = ToolManager(self.temp_dir / "tools")
         return self.tool_manager
 
-    async def analyze_media(self, request: DownloadRequest) -> MediaInfo:
+    async def analyze_media(self, request: DownloadRequest, *, playlist: bool = False) -> MediaInfo:
         """What yt-dlp finds on a page (title, qualities, subtitles, playlist entries)."""
         return await analyze(
             self.tools,
@@ -233,6 +247,7 @@ class DownloadManager:
             temp_dir=self.temp_dir,
             proxy=self.settings.proxy,
             use_system_proxy=self.settings.use_system_proxy,
+            playlist=playlist,
         )
 
     async def add_media(
@@ -385,6 +400,7 @@ class DownloadManager:
         busy: dict[int, int] = {}
         for run in self._running.values():
             busy[run.queue_id] = busy.get(run.queue_id, 0) + 1
+        missing: tuple[str, ...] | None = None  # checked once per pump, only if needed
         for job in self.jobs.list(states={JobState.QUEUED}):
             if job.id in self._running:
                 continue
@@ -394,6 +410,12 @@ class DownloadManager:
                 if job.queue_id not in self._active_queues or queue is None:
                     continue
                 if busy.get(job.queue_id, 0) >= queue.max_concurrent:
+                    continue
+            if job.media_options is not None:  # due to run: are yt-dlp and FFmpeg there?
+                if missing is None:
+                    missing = self.missing_tools()
+                if missing:
+                    self._wait_for_tools(job, missing)
                     continue
             host = host_of(job.request.url)
             wanted = min(
@@ -406,6 +428,16 @@ class DownloadManager:
             self._launch(job, host, granted, manual)
             busy[job.queue_id] = busy.get(job.queue_id, 0) + 1
         self._check_finished_queues()
+
+    def _wait_for_tools(self, job: Job, missing: tuple[str, ...]) -> None:
+        message = WAITING_FOR_TOOLS.format(" and ".join(
+            "FFmpeg" if name == "ffmpeg" else name for name in missing
+        ))  # fmt: skip
+        if job.message != message:
+            self._set(job, JobState.QUEUED, message)
+        if not self._tools_reported:
+            self._tools_reported = True
+            self._emit(ToolsMissing(missing))
 
     def _launch(self, job: Job, host: str, connections: int, manual: bool) -> None:
         request = job.request
@@ -484,7 +516,14 @@ class DownloadManager:
                 job.final_path = download.final_path
             job.size = download.total
             job.downloaded = download.downloaded
-            if error is not None:
+            vanished = error is not None and error.kind is ErrorKind.TOOL_MISSING
+            if vanished and self.missing_tools():
+                # The tools vanished after the check: wait for them like the others. (If they
+                # still look installed, fail below instead of retrying in a loop.)
+                job.state, job.message = JobState.QUEUED, ""
+                if run.manual:
+                    self._manual.add(job_id)
+            elif error is not None:
                 job.state, job.message = JobState.FAILED, error.message
                 job.error_kind, job.error_message = str(error.kind), error.message
             elif result is not None:

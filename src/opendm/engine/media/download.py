@@ -193,7 +193,10 @@ class MediaDownload:
         return [*args, "--", self.request.url]
 
     async def _run_process(self, args: list[str]) -> tuple[int, str]:
-        process = await ToolProcess.start(args, on_stderr=self._handle_line)
+        try:
+            process = await ToolProcess.start(args, on_stderr=self._handle_line)
+        except FileNotFoundError as exc:  # deleted after the check (e.g. a folder clean-up)
+            raise DownloadError(ErrorKind.TOOL_MISSING, "yt-dlp is not installed") from exc
         self._process = process
         async for line in process.lines():
             self._handle_line(line)

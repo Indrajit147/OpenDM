@@ -5,7 +5,7 @@ slow      writes a .part file slowly; honours --continue (resumes from the part 
 spawn     like slow, but first starts a child process and writes its pid to child.pid
 drm       fails like yt-dlp on DRM-protected content
 netfail   fails with a network error
-playlist  -J returns a playlist of three entries
+playlist  -J returns a playlist of three entries (a single video with --no-playlist)
 cookieblock  with --cookies only images are offered (like logged-in YouTube without a
           JavaScript runtime); without cookies it behaves like ok
 Every invocation's arguments are appended to $FAKE_YTDLP_LOG (JSON lines) if set.
@@ -54,7 +54,7 @@ def main(argv: list[str]) -> int:
               file=sys.stderr)  # fmt: skip
         return 1
     if "-J" in argv:
-        if mode == "playlist":
+        if mode == "playlist" and "--no-playlist" not in argv:
             entries = [
                 {"id": str(i), "title": f"Item {i}", "url": f"http://fake/ok/{i}", "duration": 3}
                 for i in (1, 2, 3)

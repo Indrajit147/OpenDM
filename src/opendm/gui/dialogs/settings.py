@@ -1,6 +1,7 @@
 """Settings dialog. Works on copies; the caller persists the result."""
 
 import dataclasses
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -62,9 +64,14 @@ class SettingsDialog(QDialog):
         parent: QWidget | None = None,
         tools_panel: ToolsPanel | None = None,
         browser_panel: BrowserPanel | None = None,
+        *,
+        tools_check: Callable[[Path, Path], str | None] | None = None,
+        version: str = "",
+        on_check_now: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Settings"))
+        self._tools_check = tools_check
         self.resize(640, 440)
         self._settings = settings
         self._categories = categories
@@ -158,7 +165,30 @@ class SettingsDialog(QDialog):
         if tools_panel is not None:
             form.addRow(tools_panel)
         tabs.addTab(tools, self.tr("Tools"))
-        tabs.addTab(_note(self.tr("Update checks arrive in a later version.")), self.tr("Updates"))
+        self.tools_tab = tools
+        updates = QWidget()
+        form = QFormLayout(updates)
+        self.version_label = QLabel(self.tr("You have OpenDM {0}.").format(version))
+        self.update_check = QCheckBox(self.tr("Check for a new OpenDM when it starts"))
+        self.update_check.setChecked(settings.update_check)
+        self.prereleases = QCheckBox(self.tr("Include test versions (pre-releases)"))
+        self.prereleases.setChecked(settings.include_prereleases)
+        self.check_now_button = QPushButton(self.tr("Check now"))
+        self.check_now_button.setEnabled(on_check_now is not None)
+        if on_check_now is not None:
+            self.check_now_button.clicked.connect(on_check_now)
+        note = QLabel(self.tr(
+            "OpenDM only contacts GitHub when this is turned on or you click Check now. "
+            "Nothing is installed without your OK, and the installer is checked against its "
+            "published SHA-256 first."
+        ))  # fmt: skip
+        note.setWordWrap(True)
+        form.addRow(self.version_label)
+        form.addRow(self.update_check)
+        form.addRow(self.prereleases)
+        form.addRow(self.check_now_button)
+        form.addRow(note)
+        tabs.addTab(updates, self.tr("Updates"))
         self.tabs = tabs
 
         buttons = QDialogButtonBox(
@@ -169,6 +199,16 @@ class SettingsDialog(QDialog):
         outer = QVBoxLayout(self)
         outer.addWidget(tabs)
         outer.addWidget(buttons)
+
+    def accept(self) -> None:
+        if self._tools_check is not None:
+            result = self.result_settings()
+            problem = self._tools_check(result.tools_dir, result.download_dir)
+            if problem is not None:
+                self.tabs.setCurrentWidget(self.tools_tab)
+                QMessageBox.warning(self, self.tr("Tools folder"), problem)
+                return
+        super().accept()
 
     def result_settings(self) -> AppSettings:
         limit = self.limit.value() * 1024
@@ -191,6 +231,8 @@ class SettingsDialog(QDialog):
                 if self.tools_panel is not None
                 else self._settings.tool_update_check
             ),
+            update_check=self.update_check.isChecked(),
+            include_prereleases=self.prereleases.isChecked(),
         )
 
     def result_categories(self) -> list[Category]:

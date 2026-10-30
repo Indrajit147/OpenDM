@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -39,6 +39,8 @@ class MediaChoice:
 
 
 class MediaDialog(QDialog):
+    wholePlaylistRequested = Signal()  # the link was one video of a playlist: show them all
+
     def __init__(
         self,
         info: MediaInfo,
@@ -115,6 +117,12 @@ class MediaDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(title)
         layout.addWidget(subtitle)
+        self.playlist_button = QPushButton(
+            self.tr("This video is part of a playlist. Show the whole playlist...")
+        )
+        self.playlist_button.setVisible(info.playlist_url is not None)
+        self.playlist_button.clicked.connect(self.wholePlaylistRequested.emit)
+        layout.addWidget(self.playlist_button, alignment=Qt.AlignmentFlag.AlignLeft)
         self.entries = QListWidget()
         if info.is_playlist:
             for entry in info.entries:

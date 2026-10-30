@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from opendm.core.errors import DownloadError, ErrorKind
 from opendm.core.models import DownloadRequest
@@ -61,6 +61,8 @@ class MediaInfo:
     subtitles: list[str] = field(default_factory=list)
     auto_subtitles: list[str] = field(default_factory=list)
     entries: list[MediaEntry] = field(default_factory=list)
+    # Set when a video inside a playlist was analyzed alone: the picker can offer the list.
+    playlist_url: str | None = None
 
     @property
     def is_playlist(self) -> bool:
@@ -130,12 +132,21 @@ async def analyze(
     temp_dir: Path,
     proxy: str | None = None,
     use_system_proxy: bool = True,
+    playlist: bool = False,
 ) -> MediaInfo:
-    """``yt-dlp -J --flat-playlist``: what is on the page. Raises PROTECTED for DRM."""
-    info = await _page_info(tools, request, temp_dir, proxy, use_system_proxy, request.cookies)
+    """``yt-dlp -J --flat-playlist``: what is on the page. Raises PROTECTED for DRM.
+
+    A link to one video inside a playlist (``watch?v=...&list=...``, e.g. a YouTube Mix) is
+    analyzed as that video unless ``playlist`` is True.
+    """
+    single = not playlist and video_in_playlist(request.url)
+    extra = ("--no-playlist",) if single else ()
+    info = await _page_info(
+        tools, request, temp_dir, proxy, use_system_proxy, request.cookies, extra
+    )
     if request.cookies and info.get("_type") != "playlist" and not has_streams(info):
         # Browser cookies can hide the streams (see formats_hidden); try without them.
-        info = await _page_info(tools, request, temp_dir, proxy, use_system_proxy, None)
+        info = await _page_info(tools, request, temp_dir, proxy, use_system_proxy, None, extra)
     if info_is_protected(info):
         raise DownloadError(ErrorKind.PROTECTED, PROTECTED_MESSAGE)
     # yt-dlp does not flag every DRM scheme (e.g. Widevine ContentProtection in DASH),
@@ -144,7 +155,16 @@ async def analyze(
     manifests |= {f["manifest_url"] for f in info.get("formats") or [] if f.get("manifest_url")}
     for manifest in sorted(manifests)[:MAX_MANIFEST_CHECKS]:
         await check_manifest(manifest, request, proxy=proxy, use_system_proxy=use_system_proxy)
-    return summarize(info, request.url)
+    summary = summarize(info, request.url)
+    if single and not summary.is_playlist:
+        summary.playlist_url = request.url
+    return summary
+
+
+def video_in_playlist(url: str) -> bool:
+    """A link that names one video and the playlist it was opened from."""
+    query = parse_qs(urlsplit(url).query)
+    return bool(query.get("v", [""])[0] and query.get("list", [""])[0])
 
 
 async def _page_info(
@@ -154,11 +174,12 @@ async def _page_info(
     proxy: str | None,
     use_system_proxy: bool,
     cookie_header: str | None,
+    extra: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     with temporary_cookie_file(cookie_header, request.url, temp_dir) as cookies:
         args = [
             *tools.ytdlp_command(), "-J", "--flat-playlist", "--no-warnings",
-            "--encoding", "utf-8",
+            "--encoding", "utf-8", *extra,
             *request_args(request, proxy=proxy, use_system_proxy=use_system_proxy,
                           cookie_file=cookies),
             "--", request.url,
@@ -166,7 +187,7 @@ async def _page_info(
         code, out, err = await run_tool(args, timeout=ANALYZE_TIMEOUT)
     if code != 0:
         if cookie_header and formats_hidden(err):
-            return await _page_info(tools, request, temp_dir, proxy, use_system_proxy, None)
+            return await _page_info(tools, request, temp_dir, proxy, use_system_proxy, None, extra)
         raise classify_ytdlp_error(err)
     try:
         return json.loads(out)
