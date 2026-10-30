@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from opendm.core.errors import DownloadError
-from opendm.core.models import AfterAction, JobState
+from opendm.core.models import AfterAction, Job, JobState
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +59,32 @@ class QueueFinished:
     action: AfterAction
 
 
-Event = Progress | StateChanged | Finished | Failed | JobChanged | QueueFinished
+@dataclass(frozen=True, slots=True)
+class JobSnapshot:
+    """A copy of a stored job, sent across threads by the bridge (``job`` None = removed)."""
+
+    job_id: str
+    job: Job | None
+
+
+@dataclass(frozen=True, slots=True)
+class PowerRequested:
+    """A finished queue wants the computer to sleep or shut down (GUI shows a countdown)."""
+
+    action: AfterAction
+    queue_name: str
+
+
+Event = (
+    Progress
+    | StateChanged
+    | Finished
+    | Failed
+    | JobChanged
+    | QueueFinished
+    | JobSnapshot
+    | PowerRequested
+)
 EventSink = Callable[[Event], None]
 
 
