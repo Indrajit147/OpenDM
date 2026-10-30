@@ -1,6 +1,7 @@
 """Downloads and link lists handed over by the browser extension (M6)."""
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from opendm.core.models import DownloadRequest, JobState
 from opendm.gui.dialogs.start_download import StartDownloadDialog
@@ -105,3 +106,12 @@ def test_capture_links_lets_the_user_pick(qtbot, gui: GuiApp, server: FaultServe
     qtbot.waitUntil(done, timeout=WAIT)
     job = gui.window.model.jobs()[0]
     assert job.name == "manual.pdf" and job.request.referrer == server.url("/downloads")
+
+
+def test_quit_command_closes_the_app_after_replying(gui: GuiApp, monkeypatch) -> None:
+    quits: list[bool] = []
+    monkeypatch.setattr(gui, "quit", lambda: quits.append(True))
+    assert ipc(gui, "quit", {}) is None
+    assert quits == []  # not inside the request: the reply must go out first
+    QApplication.processEvents()
+    assert quits == [True]

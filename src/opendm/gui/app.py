@@ -8,7 +8,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QUrl
+from PySide6.QtCore import QObject, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
@@ -426,6 +426,9 @@ class Application(QObject):
         args = request.args
         if request.cmd == "ping":
             return "pong"
+        if request.cmd == "quit":  # same user only (the pipe is per-user); used by the build tests
+            QTimer.singleShot(0, self.quit)
+            return None
         if request.cmd == "activate":
             self.show_window()
             if args.get("urls"):

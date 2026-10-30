@@ -122,6 +122,7 @@ def _media(value: Any) -> dict[str, Any]:
 
 _ARGS: dict[str, dict[str, Callable[[Any], Any]]] = {
     "ping": {},
+    "quit": {},
     "list": {},
     "add": {
         "url": _url,
