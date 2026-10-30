@@ -19,8 +19,13 @@ Verified from installed package metadata (M1, 2026-10-30):
 | PySide6-Essentials (Qt for Python) | 6.12.0 | LGPL-3.0-only (or GPL-2.0/3.0) | GUI (M4) |
 | shiboken6 | 6.12.0 | LGPL-3.0-only (or GPL-2.0/3.0) | PySide6 runtime |
 
-Qt is used under the LGPL-3.0 as dynamically linked libraries; the installer (M7) will ship
-the Qt license texts and note where to get the Qt source code. Toolbar icons are Qt's built-in
+| Python runtime | 3.12.10 | PSF-2.0 | bundled by PyInstaller |
+| PyInstaller bootloader | 6.22.3 | GPL-2.0-or-later with the bootloader exception | starts the three programs |
+
+Qt is used under the LGPL-3.0 as dynamically linked libraries (separate DLLs that users can
+replace). The build ships the LGPL-3.0 text and a notice with the Qt source location in
+`licenses\` next to the programs (`installer/licenses/`). Unused Qt parts (software OpenGL,
+Qt's own translations) are left out of the build. Toolbar icons are Qt's built-in
 standard icons (part of Qt, LGPL); the app icon is original artwork drawn in code
 (`gui/icons.py`, GPL-3.0-or-later like the rest of OpenDM).
 
@@ -44,4 +49,6 @@ consenting, and they run as separate programs.
 | pytest-qt | MIT |
 | ruff | MIT |
 | setuptools (build backend) | MIT |
+| PyInstaller 6.22.3 (+ pyinstaller-hooks-contrib, altgraph, pefile, pywin32-ctypes) | GPL-2.0-or-later with bootloader exception / Apache-2.0 or GPL-2.0 / MIT / MIT / BSD-3-Clause |
+| Inno Setup 6.7.4 (builds the installer; `D:\Tools\InnoSetup`) | Inno Setup License (permissive) |
 | Node.js 26 (runs the extension's tests; the extension itself has no dependencies) | MIT |

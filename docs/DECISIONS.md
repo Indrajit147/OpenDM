@@ -363,3 +363,40 @@ specification (section 4); later entries were made during development.
   `storage.session` and cleared on navigation. A stream or a blob: video is handed over as the
   page URL with `media: true`, so yt-dlp (and its DRM check) handles it; a plain file URL goes
   to the HTTP engine. See docs/PRIVACY.md.
+
+## D60 Build layout (M7, 2026-10-30)
+- **Choice:** one PyInstaller spec (`installer/opendm.spec`) builds `OpenDM.exe` (windowed),
+  `opendm-cli.exe` and `opendm-host.exe` (console) into one onedir folder sharing `_internal`.
+  The console programs exclude Qt (a test keeps them Qt-free). Qt's software OpenGL DLL and
+  translations are left out (-27 MB; English UI, widgets only): 88 MB folder, 45 MB portable
+  ZIP, 26 MB installer. No UPX (antivirus false positives). Build and cache files stay in
+  `build\` and `dist\` (`PYINSTALLER_CONFIG_DIR`). Version has one source,
+  `opendm.__version__` (0.7.0), read by pyproject and the version resources.
+
+## D61 Installer (M7, 2026-10-30, approved)
+- **Choice:** Inno Setup 6.7.4 (6.x rather than 7.x: same script format; license permissive for
+  open source), per user (`PrivilegesRequired=lowest`), default `%LOCALAPPDATA%\Programs\OpenDM`
+  with a folder page. Start menu entry with AppUserModelID `Indrajit147.OpenDM` (the app sets
+  the same ID, so notifications say OpenDM), optional desktop icon, `AppMutex` =
+  `OpenDM-AppRunning` (held by the app) to ask the user to close it.
+- Browser: `opendm-host.exe --register` writes the manifest next to the host; the same HKCU keys
+  are also listed in `[Registry]` with `uninsdeletekey` so uninstall always removes them.
+- Upgrades delete `_internal` and `extension` first (no stale libraries). Uninstall removes
+  everything it installed and asks before deleting `%LOCALAPPDATA%\OpenDM` (default No; silent
+  uninstall keeps it unless `/DELETEDATA=1`). Downloaded files are never touched.
+- Unsigned for now; SmartScreen warns. Signing (SignPath Foundation) is documented in M8.
+
+## D62 Portable build and browser setup from the app (M7, 2026-10-30)
+- **Choice:** the portable ZIP is the same folder plus `portable.flag` (data in `data\` next to
+  the exe, spec 6.10). Chrome/Edge setup for it (and repairs for installed copies) is in
+  Settings -> Browser and `opendm-host.exe --register|--unregister|--status`. The unpacked
+  extension ships in `extension\` until it is in the stores.
+- An IPC `quit` command (same user only) lets the build tests close the app cleanly.
+
+## D63 Packaging tests (M7, 2026-10-30)
+- **Choice:** `scripts/smoke_dist.py` (programs from the portable ZIP: CLI download with
+  SHA-256, host replies, GUI start/answer/quit in portable mode on a private pipe) and
+  `scripts/installer_test.py` (silent install to `build\install-test`, upgrade, uninstall,
+  leftover check of files, shortcut, uninstall entry and browser keys). They run locally after
+  a build; CI builds come with the release workflow (M8). Windows Sandbox is not available on
+  Windows 11 Home, so the clean-account check is a manual step.

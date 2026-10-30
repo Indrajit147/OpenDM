@@ -258,3 +258,41 @@ Checks (pages are under `http://127.0.0.1:8765/pages/`):
     notification says OpenDM is not available. Register again afterwards.
 11. Repeat 2, 5 and 9 in Edge.
 12. Clean up the test files from your download folder.
+
+## Build tests and manual checklist: M7 (installer and portable build)
+
+Build and automated checks (CMD, from `D:\Projects\opendm`; Inno Setup in `D:\Tools\InnoSetup`):
+
+```
+scripts\build.cmd
+.venv\Scripts\python.exe scripts\smoke_dist.py
+.venv\Scripts\python.exe scripts\installer_test.py
+```
+
+`build.cmd` writes `dist\OpenDM\`, `dist\OpenDM-<version>-portable.zip` and
+`dist\OpenDM-<version>-setup.exe`. `installer_test.py` must run while OpenDM is **not**
+installed; it re-registers the dev browser host at the end.
+
+Manual checklist (quit any OpenDM running from source first, from its tray menu):
+
+1. Run `dist\OpenDM-0.7.0-setup.exe`. No admin prompt appears. SmartScreen may warn (unsigned):
+   More info -> Run anyway. On the folder page choose `D:\Apps\OpenDM` (any folder you like).
+   Tick "Create a desktop shortcut". Finish with "Launch OpenDM".
+2. The Start menu has OpenDM with the OpenDM icon. The taskbar button shows the OpenDM icon,
+   and a finished-download notification says "OpenDM" (not "Python").
+3. With the test server running, download `http://127.0.0.1:8765/file/a.bin?size=20M`.
+4. Settings -> Browser shows Chrome and Edge "set up". In Chrome remove the unpacked extension
+   loaded from the repo, then load the one from the install folder (`D:\Apps\OpenDM\extension`).
+   Clicking a link on `http://127.0.0.1:8765/pages/links.html` reaches the installed OpenDM.
+5. With OpenDM running, run the setup again: it asks you to close OpenDM first.
+6. `D:\Apps\OpenDM\opendm-cli.exe list` lists the download.
+7. Uninstall from Windows Settings -> Apps -> OpenDM. Answer **No** to deleting your data.
+   `D:\Apps\OpenDM`, the shortcuts and the Start menu entry are gone;
+   `reg query HKCU\Software\Google\Chrome\NativeMessagingHosts` shows no OpenDM entry;
+   `%LOCALAPPDATA%\OpenDM` and your downloaded file are still there.
+8. Portable: unzip `dist\OpenDM-0.7.0-portable.zip` to `D:\PortableTest`, run `OpenDM.exe`,
+   go through the first-run wizard: a `data` folder appears next to it.
+9. Optional, clean account: create a second Windows user, copy the setup there, install, use,
+   uninstall (Windows 11 Home has no Windows Sandbox).
+10. Restore the dev setup afterwards: `scripts\register_host_dev.cmd`, and reload the unpacked
+    extension from `D:\Projects\opendm\extension` to keep testing from source.
