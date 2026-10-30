@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QModelIndex, QPoint, Qt, QUrl, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QPoint, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -44,9 +44,12 @@ from opendm.gui.engine_client import EngineClient
 from opendm.gui.icons import app_icon
 from opendm.gui.models.downloads import (
     ADDED,
+    ETA,
     JOB_ROLE,
     NAME,
     PROGRESS,
+    SIZE,
+    SPEED,
     STATUS,
     DownloadsFilter,
     DownloadsModel,
@@ -77,6 +80,7 @@ RISKY_SUFFIXES = frozenset(
     ]
 )
 MAX_LINK_FILE = 1024 * 1024
+MIN_NAME_WIDTH = 220
 
 
 class MainWindow(QMainWindow):
@@ -96,7 +100,7 @@ class MainWindow(QMainWindow):
         self._details: dict[str, DetailsDialog] = {}
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(app_icon())
-        self.resize(1000, 600)
+        self.resize(1100, 640)
         self.setAcceptDrops(True)
 
         self.model = DownloadsModel(self)
@@ -114,10 +118,7 @@ class MainWindow(QMainWindow):
         self.table.setWordWrap(False)  # long names/statuses are elided; full text in the tooltip
         self.table.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.table.verticalHeader().setDefaultSectionSize(self.fontMetrics().height() + 10)
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(NAME, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(ADDED, QHeaderView.ResizeMode.ResizeToContents)
-        header.resizeSection(STATUS, 220)
+        self._size_columns()
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._context_menu)
         self.table.doubleClicked.connect(self._double_clicked)
@@ -134,7 +135,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.sidebar)
         splitter.addWidget(self.table)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([200, 800])
+        splitter.setSizes([160, 940])
         self.setCentralWidget(splitter)
         self._build_actions()
         self.speed_label = QLabel()
@@ -186,6 +187,52 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         toolbar.addWidget(self.search)
         self._update_actions()
+
+    def _size_columns(self) -> None:
+        """Compact fixed widths sized from the font; the name takes all remaining space.
+
+        (ResizeToContents is avoided: it re-measures every row on each progress update.)
+        """
+        metrics = self.table.fontMetrics()
+        pad = 18
+
+        def fits(sample: str) -> int:
+            return metrics.horizontalAdvance(sample) + pad
+
+        header = self.table.horizontalHeader()
+        header.setMinimumSectionSize(40)
+        self._preferred = {
+            SIZE: fits("999.9 MiB"),
+            PROGRESS: fits("100.0%") + 40,
+            SPEED: fits("999.9 MiB/s"),
+            ETA: fits("99:59:59"),
+            STATUS: fits("Downloading") + 40,
+            ADDED: fits("2026-12-31 23:59"),
+        }
+        for column in range(self.model.columnCount()):
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        self.table.viewport().installEventFilter(self)
+        self._fit_columns()
+
+    def _fit_columns(self) -> None:
+        """Name gets what is left, but at least MIN_NAME_WIDTH; others shrink to 60% if needed."""
+        header = self.table.horizontalHeader()
+        available = self.table.viewport().width()
+        preferred = sum(self._preferred.values())
+        scale = 1.0
+        if available - preferred < MIN_NAME_WIDTH:
+            scale = max((available - MIN_NAME_WIDTH) / preferred, 0.6)
+        used = 0
+        for column, width in self._preferred.items():
+            size = int(width * scale)
+            header.resizeSection(column, size)
+            used += size
+        header.resizeSection(NAME, max(available - used, MIN_NAME_WIDTH))
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.table.viewport() and event.type() == QEvent.Type.Resize:
+            self._fit_columns()
+        return super().eventFilter(watched, event)
 
     def reload(self) -> None:
         self.client.call(
