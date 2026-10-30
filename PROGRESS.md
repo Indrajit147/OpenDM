@@ -18,8 +18,13 @@
 - `core/paths.downloads_dir()` (Known Folder API), `core/models` Job/Queue/Category.
 - Decisions D35–D41.
 
+- Fixed an M2 engine bug found by repeat runs: pausing while a buffer was being written to disk
+  left those bytes uncounted, so they were downloaded again on resume (safe, but up to one
+  buffer per connection wasted). Deterministic regression test added.
+
 ### Results
-- `pytest -q`: 406 passed (plus repeat runs). `ruff check .` / `ruff format --check .`: clean.
+- `pytest -q`: 407 passed, 3 consecutive full runs. `ruff check .` / `ruff format --check .`:
+  clean. CI green.
 - Coverage 93% overall; every `core/`, `engine/`, `storage/`, `queue/` module >= 84%.
 - Acceptance: jobs persist across restarts (incl. encrypted cookies; resumed download has the
   correct SHA-256 and re-fetches nothing beyond in-flight data); crash recovery marks running
