@@ -37,3 +37,14 @@ def test_other_errors_do_not_offer_it(qtbot, gui: GuiApp, server) -> None:
     dialog = dialog_for(gui, server, qtbot)
     dialog._probe_failed(DownloadError(ErrorKind.NOT_FOUND, "server replied HTTP 404"))
     assert not dialog.insecure_box.isVisible()
+
+
+def test_ticked_override_is_stored_with_the_job(qtbot, gui: GuiApp, server) -> None:
+    dialog = dialog_for(gui, server, qtbot)
+    dialog._probe_failed(DownloadError(ErrorKind.TLS, "certificate verify failed"))
+    dialog.insecure_box.setChecked(True)
+    dialog.queue_button.click()  # add without starting
+    qtbot.waitUntil(lambda: len(gui.window.model.jobs()) == 1, timeout=10_000)
+    job = gui.window.model.jobs()[0]
+    stored = gui.client.call(lambda m: m.jobs.get(job.id)).result(5)
+    assert stored is not None and stored.request.verify_tls is False
