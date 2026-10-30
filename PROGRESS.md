@@ -24,16 +24,17 @@
 - `pytest` with real tools: 745 passed, 2 failed. The 2 are HTTP timing tests
   (`test_speed_limit_within_10_percent`, `test_external_cancellation_checkpoints`) that fail the
   same way on the pre-M8 commit on this PC tonight (slow local connection start under load);
-  GitHub CI is the reference run. 747 tests (671 before M8). Node: 13 passed. `ruff check`/`format`: clean.
+  GitHub CI passed them (run 41097571459). 747 tests (671 before M8). Node: 13 passed.
+  `ruff check`/`format`: clean.
 - `scripts/smoke_dist.py` (0.8.0-rc.1 portable ZIP): 14/14. Version info shows 0.8.0-rc.1.
 - `scripts/installer_test.py` was not run locally (OpenDM is installed on this PC; the test needs
-  a machine without it). The release workflow runs it on GitHub; it now also checks that
-  upgrades keep `tools` and the uninstaller removes `tools` and `updates`.
-- Sizes: setup 26 MB, portable ZIP 45 MB.
+  a machine without it). It passed in the release workflow, now also checking that upgrades
+  keep `tools` and the uninstaller removes `tools` and `updates`.
+- Release workflow for tag `v0.8.0-rc.1` (run 41098105660, 5 min): every step green, draft
+  release created. Sizes: setup 26 MB, portable ZIP 45 MB.
 
 ### Known limitations
-- The release workflow has not run on GitHub yet: it runs when the `v0.8.0-rc.1` tag is
-  pushed (with the user's go-ahead), and its draft must be published by the user.
+- The draft release must be published by the user (drafts are private).
 - Unsigned builds: SmartScreen warns (signing options are M9).
 - The updater was tested against a fake GitHub on the test server; the real path (rc.1 ->
   rc.2) is manual checklist step 7.
@@ -57,8 +58,8 @@
 - **M1:** errors, events, filename handling, probe, CLI. **M0:** tooling, test server, CI.
 
 ### Next
-- Push tag `v0.8.0-rc.1` once CI on main is green, check the Release run, user publishes the draft as a
-  pre-release and runs the M8 checklist (docs/TESTING.md); then `v0.8.0-rc.2` for the update.
+- User publishes the `v0.8.0-rc.1` draft as a pre-release and runs the M8 checklist
+  (docs/TESTING.md); at step 7 Claude bumps to `0.8.0-rc.2` and pushes that tag.
 - On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes
