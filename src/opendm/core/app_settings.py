@@ -34,6 +34,18 @@ class AppSettings:
     global_limit: int | None = None
     proxy_mode: ProxyMode = ProxyMode.SYSTEM
     proxy_url: str = ""
+    ytdlp_path: str = ""  # "Use existing..." override; empty = <tools_dir>\yt-dlp\yt-dlp.exe
+    ffmpeg_path: str = ""  # override; empty = <tools_dir>\ffmpeg\bin\ffmpeg.exe
+    tool_update_check: bool = False  # weekly yt-dlp update check (opt-in, spec 6.8)
+    last_tool_check: str = ""  # ISO date of the last check
+
+    def tool_overrides(self) -> dict[str, Path]:
+        overrides = {}
+        if self.ytdlp_path:
+            overrides["yt-dlp"] = Path(self.ytdlp_path)
+        if self.ffmpeg_path:
+            overrides["ffmpeg"] = Path(self.ffmpeg_path)
+        return overrides
 
     @classmethod
     def defaults(cls, *, downloads: Path, data_dir: Path) -> "AppSettings":

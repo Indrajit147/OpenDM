@@ -25,6 +25,7 @@ from opendm.core.events import (
     Progress,
     QueueFinished,
     StateChanged,
+    ToolProgress,
     discard,
 )
 from opendm.core.models import (
@@ -57,6 +58,7 @@ from opendm.storage.repositories import (
     QueueRepository,
     SettingsRepository,
 )
+from opendm.tools.manager import ToolInfo, ToolManager
 
 StopReason = Literal["user", "queue", "shutdown", "remove"]
 _LIVE_STATES = frozenset({JobState.PROBING, JobState.DOWNLOADING, JobState.VERIFYING})
@@ -93,6 +95,7 @@ class DownloadManager:
         self.db = db
         self.temp_dir = temp_dir or Path(tempfile.gettempdir())  # cookie files for yt-dlp
         self.tools = ToolPaths()
+        self.tool_manager: ToolManager | None = None
         self.jobs = JobRepository(db)
         self.queues = QueueRepository(db)
         self.categories = CategoryRepository(db)
@@ -171,6 +174,56 @@ class DownloadManager:
     def set_tools(self, tools: ToolPaths) -> None:
         """yt-dlp/FFmpeg locations for media jobs started from now on."""
         self.tools = tools
+
+    def configure_tools(self, folder: Path, overrides: dict[str, Path]) -> ToolManager:
+        self.tool_manager = ToolManager(folder, overrides=overrides)
+        self.set_tools(self.tool_manager.paths())
+        return self.tool_manager
+
+    async def tool_status(self) -> list[ToolInfo]:
+        return await self._tools_or_default().status()
+
+    async def install_tool(self, name: str) -> ToolInfo:
+        """Install or update yt-dlp or ffmpeg (the caller has the user's consent)."""
+        tools = self._tools_or_default()
+
+        def report(done: int, total: int | None) -> None:
+            self._emit(ToolProgress(name, done, total))
+
+        if name == "yt-dlp":
+            info = await tools.install_ytdlp(report)
+        elif name == "ffmpeg":
+            info = await tools.install_ffmpeg(report)
+        else:
+            raise ValueError(f"unknown tool {name}")
+        self.set_tools(tools.paths())
+        return info
+
+    async def use_existing_tool(self, name: str, path: Path) -> ToolInfo:
+        tools = self._tools_or_default()
+        info = await tools.use_existing(name, path)
+        self.set_tools(tools.paths())
+        return info
+
+    async def check_ytdlp_update(self) -> tuple[str | None, str] | None:
+        """(installed, latest) when a newer yt-dlp exists, else None."""
+        return await self._tools_or_default().ytdlp_update_available()
+
+    async def tool_downloads(self) -> dict[str, int | None]:
+        """Download sizes for the consent dialog (None if unknown)."""
+        tools = self._tools_or_default()
+        sizes: dict[str, int | None] = {}
+        for name, fetch in (("yt-dlp", tools.latest_ytdlp), ("ffmpeg", tools.ffmpeg_release)):
+            try:
+                sizes[name] = (await fetch()).size
+            except DownloadError:
+                sizes[name] = None
+        return sizes
+
+    def _tools_or_default(self) -> ToolManager:
+        if self.tool_manager is None:
+            self.tool_manager = ToolManager(self.temp_dir / "tools")
+        return self.tool_manager
 
     async def analyze_media(self, request: DownloadRequest) -> MediaInfo:
         """What yt-dlp finds on a page (title, qualities, subtitles, playlist entries)."""

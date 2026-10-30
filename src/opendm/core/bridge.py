@@ -49,8 +49,10 @@ class EngineThread:
         settings: EngineSettings | None = None,
         per_host: int = 8,
         scheduler_interval: float = 30.0,
+        temp_dir: Path | None = None,
     ) -> None:
         self._db_path = db_path
+        self._temp_dir = temp_dir
         self._settings = settings
         self._per_host = per_host
         self._interval = scheduler_interval
@@ -85,6 +87,7 @@ class EngineThread:
                 sink=self._on_event,
                 per_host=self._per_host,
                 power=_EventPower(self._events.put),
+                temp_dir=self._temp_dir,
             )
             loop.run_until_complete(self.manager.open())
             scheduler = loop.create_task(self.manager.run_scheduler(self._interval))

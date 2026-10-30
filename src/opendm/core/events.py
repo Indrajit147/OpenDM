@@ -75,6 +75,15 @@ class PowerRequested:
     queue_name: str
 
 
+@dataclass(frozen=True, slots=True)
+class ToolProgress:
+    """Download progress of a tool install (yt-dlp, ffmpeg)."""
+
+    tool: str
+    done: int
+    total: int | None
+
+
 Event = (
     Progress
     | StateChanged
@@ -84,6 +93,7 @@ Event = (
     | QueueFinished
     | JobSnapshot
     | PowerRequested
+    | ToolProgress
 )
 EventSink = Callable[[Event], None]
 
