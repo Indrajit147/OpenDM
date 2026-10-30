@@ -41,6 +41,7 @@ def test_kind_for_status(status: int, kind: ErrorKind) -> None:
 
 
 def test_retryable_kinds() -> None:
+    assert DownloadError(ErrorKind.CONNECTION, "x").retryable
     assert DownloadError(ErrorKind.NETWORK, "x").retryable
     assert DownloadError(ErrorKind.TIMEOUT, "x").retryable
     assert DownloadError(ErrorKind.SERVER, "x", status=503).retryable

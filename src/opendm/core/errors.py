@@ -5,7 +5,8 @@ from enum import StrEnum
 
 
 class ErrorKind(StrEnum):
-    NETWORK = "network"  # connection reset/refused, body cut short
+    CONNECTION = "connection"  # could not connect at all (refused, DNS, unreachable)
+    NETWORK = "network"  # connection reset, body cut short
     TIMEOUT = "timeout"
     SERVER = "server"  # 5xx, 408, 429
     NOT_FOUND = "not_found"  # 404, 410
@@ -20,7 +21,9 @@ class ErrorKind(StrEnum):
     UNKNOWN = "unknown"
 
 
-RETRYABLE_KINDS = frozenset({ErrorKind.NETWORK, ErrorKind.TIMEOUT, ErrorKind.SERVER})
+RETRYABLE_KINDS = frozenset(
+    {ErrorKind.CONNECTION, ErrorKind.NETWORK, ErrorKind.TIMEOUT, ErrorKind.SERVER}
+)
 
 # Windows system error codes that arrive as OSError.winerror.
 _WIN_DISK_FULL = {39, 112}  # ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL
