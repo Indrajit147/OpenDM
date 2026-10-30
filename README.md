@@ -1,50 +1,54 @@
 # OpenDM
 
-A free, open-source, no-subscription download manager for Windows.
+A free, open-source download manager for Windows. No ads, no account, no subscription and
+no telemetry.
 
-> **Status: early development (milestone M8, test releases).** Test builds (`-rc`) appear on
-> the [Releases page](https://github.com/Indrajit147/OpenDM/releases); 1.0 comes with M9. See
-> [PROGRESS.md](PROGRESS.md), [CHANGELOG.md](CHANGELOG.md) and the
-> [project specification](docs/PROJECT_SPEC.md).
+![OpenDM main window](docs/images/main-dark.png)
+
+**[Download the latest release](https://github.com/Indrajit147/OpenDM/releases)** ·
+[Install guide](docs/INSTALL.md) · [User guide](docs/USER_GUIDE.md) · [FAQ](docs/FAQ.md) ·
+[Changelog](CHANGELOG.md)
 
 ## Features
 
-Working now:
+- **Fast, reliable downloads:** up to 32 connections per file, pause and resume, automatic
+  retries, and recovery after a crash or a lost connection. Expired links can be refreshed
+  without starting over. Optional SHA-256/SHA-1/MD5 check.
+- **Organised:** categories with their own folders, queues with start/stop times and
+  "sleep or shut down when done", speed limits, search, light and dark themes, tray icon.
+- **Video and audio** from YouTube and many other sites through
+  [yt-dlp](https://github.com/yt-dlp/yt-dlp) and FFmpeg: quality picker, MP3/M4A, subtitles,
+  playlists. The tools are downloaded only with your consent and checked against their
+  published checksums. DRM-protected content is not supported.
+- **Chrome and Edge extension:** browser downloads go to OpenDM (logins included), right-click
+  "Download with OpenDM", "Download all links", and a button on videos.
+- **Command line:** `opendm-cli get <link>`, through the running app or on its own.
+- **Your choice of updates:** an optional update check shows release notes; installers are
+  checked against their published SHA-256 and run only when you click Install.
+- Per-user **installer** (no admin rights, any drive) and a **portable** ZIP.
 
-- Fast multi-connection downloads (up to 32 connections) with pause, resume and crash recovery
-- Queues with schedules, categories with their own folders, speed limits, searchable history
-- Desktop app with light/dark theme, tray icon, notifications, drag and drop of links
-- Video and audio from many websites via [yt-dlp](https://github.com/yt-dlp/yt-dlp), with
-  FFmpeg merging: quality picker, audio-only MP3/M4A, subtitles, playlists. The tools are
-  downloaded only with your consent and verified against their published checksums.
-  DRM-protected content is not supported.
-- Chrome and Edge extension (load unpacked for now): download takeover with cookies, context
-  menu, "download all links", video button and media detection. See
-  [docs/PRIVACY.md](docs/PRIVACY.md) for what it sends and why each permission is needed.
-- `opendm-cli` command line, talking to the running app or standalone
-- Per-user installer (no admin rights) and a portable build
-- Optional update check (off until you turn it on): release notes, then the installer is
-  downloaded, checked against its published SHA-256 and run only when you click Install
-- No telemetry, no ads, no subscription
-
-Planned (M9): signed builds where possible, a final review and the 1.0 release.
+| Details: speed graph and connection map | Video quality picker |
+| --- | --- |
+| ![Download details](docs/images/details-light.png) | ![Quality picker](docs/images/media-dialog-dark.png) |
 
 ## Install
 
-- **Installer** (`OpenDM-<version>-setup.exe` from the
-  [Releases page](https://github.com/Indrajit147/OpenDM/releases)): installs for your Windows
-  account only, no admin rights. Default folder `%LOCALAPPDATA%\Programs\OpenDM`; you can
-  choose another drive. Video tools (yt-dlp, FFmpeg) are downloaded later, with your consent,
-  into its `tools` folder. Check a download with `certutil -hashfile <file> SHA256` against
-  `SHA256SUMS.txt` on the release.
-  The builds are not code-signed yet, so Windows SmartScreen may warn: choose "More info" ->
-  "Run anyway" only if you got the file from this repository's releases.
-- **Portable** (`OpenDM-<version>-portable.zip`): unzip anywhere (for example a USB drive) and
-  run `OpenDM.exe`. Settings, history and video tools stay in the `data` folder next to it.
-- **Browser:** in OpenDM open Settings -> Browser, click "Set up for Chrome and Edge", then load
-  the `extension` folder shown there as an unpacked extension.
-- **Uninstall:** Windows Settings -> Apps -> OpenDM. It removes the programs and video tools,
-  and asks whether to delete your settings and history; downloaded files are never deleted.
+1. Download `OpenDM-<version>-setup.exe` (or the portable ZIP) from the
+   [Releases page](https://github.com/Indrajit147/OpenDM/releases).
+2. Run it from File Explorer. The builds are not code-signed yet, so Windows SmartScreen may
+   warn: choose *More info -> Run anyway* only for a file from this repository's releases
+   (you can check it against `SHA256SUMS.txt`, see the [install guide](docs/INSTALL.md)).
+3. For the browser: OpenDM -> *Settings -> Browser -> Set up for Chrome and Edge*, then load
+   the `extension` folder shown there as an unpacked extension.
+
+Windows 10 (1809+) or 11, 64-bit.
+
+## Privacy and security
+
+OpenDM only connects to the internet for your downloads, for tools you agree to download and
+for the update check if you turn it on. Cookies and logins from the browser are stored
+encrypted and only sent to the site they belong to. See [PRIVACY.md](docs/PRIVACY.md) and
+[SECURITY.md](docs/SECURITY.md) (including how to report a security problem privately).
 
 ## Disclaimer
 
@@ -54,22 +58,20 @@ paywalls, logins or CAPTCHAs.
 
 OpenDM is an independent project and is not affiliated with any commercial download manager.
 
-## Development
+## Contributing
 
-See [CLAUDE.md](CLAUDE.md) for working rules and [docs/TESTING.md](docs/TESTING.md) for the
-test setup. Quick start (CMD):
+Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Quick start (CMD):
 
 ```
-D:\Tools\Python312\python.exe -m venv .venv
+py -3.12 -m venv .venv
 .venv\Scripts\python.exe -m pip install -e .[dev]
 .venv\Scripts\python.exe -m pytest -q
 ```
 
-Build the programs, portable ZIP and installer with `scripts\build.cmd` (needs PyInstaller from
-`.[dev]` and Inno Setup 6). Run the app from source with `.venv\Scripts\opendm.exe` (or
-`.venv\Scripts\python.exe -m opendm`), and the command line with `.venv\Scripts\opendm-cli.exe --help`. For the browser extension, run
-`scripts\register_host_dev.cmd` once and load `extension\` unpacked (steps in
-[docs/TESTING.md](docs/TESTING.md), M6).
+Build the programs, portable ZIP and installer with `scripts\build.cmd` (needs Inno Setup 6).
+How the project is built and tested: [docs/TESTING.md](docs/TESTING.md),
+[docs/DECISIONS.md](docs/DECISIONS.md), [PROGRESS.md](PROGRESS.md).
 
 ## License
 

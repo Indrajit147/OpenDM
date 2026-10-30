@@ -49,7 +49,7 @@ urls = [
     server.url("/file/holiday-video.mp4?size=20M&rate=512K"),
     server.url("/file/annual-report.pdf?size=300K"),
     server.url("/file/music-album.zip?size=30M&rate=256K"),
-    server.url("/status/404"),
+    server.url("/file/fonts-collection.zip?size=2M"),
 ]
 app.window.add_urls(urls, ask=False)
 spin(4)
@@ -111,7 +111,7 @@ list_picker = MediaDialog(playlist, base_dir=work / "dl", categories=app.window.
 list_picker.resize(560, 520)
 spin(0.5)
 list_picker.grab().save(str(out / "playlist-dialog-dark.png"))
-consent = ToolsConsentDialog(["yt-dlp", "ffmpeg"], Path(r"D:\Projects\opendm\tools-bin"),
+consent = ToolsConsentDialog(["yt-dlp", "ffmpeg"], Path(r"D:\Apps\OpenDM\tools"),
                              {"yt-dlp": 23_592_960, "ffmpeg": 114_819_072})  # fmt: skip
 consent.resize(520, 330)
 spin(0.5)
