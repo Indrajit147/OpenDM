@@ -21,6 +21,7 @@ from opendm.core.models import DownloadRequest
 from opendm.core.settings import MAX_CONNECTIONS, EngineSettings
 from opendm.core.units import format_bytes, format_duration, parse_size
 from opendm.engine.http.download import HttpDownload
+from opendm.ipc import client as ipc_client
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE, EXIT_INTERRUPTED = 0, 1, 2, 130
 _USAGE_KINDS = frozenset({ErrorKind.INVALID_URL, ErrorKind.UNSUPPORTED_SCHEME})
@@ -91,7 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("list", help="list downloads in the running app")
     for name in ("pause", "resume", "remove"):
-        sub.add_parser(name, help=f"{name} a download in the running app").add_argument("id")
+        cmd = sub.add_parser(name, help=f"{name} a download in the running app")
+        cmd.add_argument("id")
+        if name == "remove":
+            cmd.add_argument("--delete-file", action="store_true", help="also delete the file")
     return parser
 
 
@@ -126,12 +130,68 @@ class ConsoleProgress:
             self._width = 0
 
 
-def _not_available(command: str) -> int:
-    print(
-        f"error: '{command}' needs the running OpenDM app, which arrives in milestone M4.",
-        file=sys.stderr,
-    )
-    return EXIT_USAGE
+_STANDALONE_ONLY = ("restart", "part_file", "insecure")
+
+
+def _ipc(cmd: str, args: dict[str, object] | None = None) -> object:
+    """One request to the running app; raises SystemExit with a message on failure."""
+    try:
+        return ipc_client.request(cmd, args)
+    except ipc_client.AppNotRunning:
+        print(
+            "error: OpenDM is not running. Start the app, or add --standalone to "
+            "download in this window.",
+            file=sys.stderr,
+        )
+        raise SystemExit(EXIT_FAILED) from None
+    except ipc_client.IpcError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(EXIT_FAILED) from None
+
+
+def _app_get(args: argparse.Namespace, checksum: str | None) -> int:
+    used = [o for o in _STANDALONE_ONLY if getattr(args, o)]
+    if used:
+        flags = ", ".join("--" + o.replace("part_file", "continue") for o in used)
+        print(f"error: {flags} only work with --standalone", file=sys.stderr)
+        return EXIT_USAGE
+    request: dict[str, object] = {"url": args.url, "connections": args.connections}
+    optional = {
+        "dest_dir": str(args.output_dir.resolve()) if args.output_dir else None,
+        "filename": args.name, "speed_limit": args.limit, "checksum": checksum,
+        "referrer": args.referer, "user_agent": args.user_agent, "cookies": args.cookie,
+        "headers": dict(args.header) or None,
+    }  # fmt: skip
+    request.update({k: v for k, v in optional.items() if v is not None})
+    try:
+        job = _ipc("add", request)
+    except SystemExit as exc:
+        return int(exc.code or EXIT_FAILED)
+    assert isinstance(job, dict)
+    print(f"Added {job['id']}: {job['name']}")
+    return EXIT_OK
+
+
+def _app_command(args: argparse.Namespace) -> int:
+    try:
+        if args.command == "list":
+            jobs = _ipc("list")
+            assert isinstance(jobs, list)
+            for job in jobs:
+                size = format_bytes(job["size"]) if job["size"] is not None else "?"
+                pct = f"{100 * job['downloaded'] / job['size']:5.1f}%" if job["size"] else "    -"
+                print(f"{job['id']}  {job['state']:<11} {pct}  {size:>10}  {job['name']}")
+            if not jobs:
+                print("no downloads")
+            return EXIT_OK
+        payload: dict[str, object] = {"job_id": args.id}
+        if args.command == "remove" and args.delete_file:
+            payload["delete_file"] = True
+        _ipc(args.command, payload)
+    except SystemExit as exc:
+        return int(exc.code or EXIT_FAILED)
+    print(f"{args.command}: {args.id}")
+    return EXIT_OK
 
 
 def _checksum(args: argparse.Namespace) -> str | None:
@@ -200,14 +260,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command != "get":
-        return _not_available(args.command)
-    if not args.standalone:
-        print(
-            "error: talking to the running OpenDM app arrives in milestone M4; "
-            "add --standalone to download in this window.",
-            file=sys.stderr,
-        )
-        return EXIT_USAGE
+        return _app_command(args)
     if args.media:
         print("error: --media (yt-dlp) arrives in milestone M5.", file=sys.stderr)
         return EXIT_USAGE
@@ -217,6 +270,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             parse_checksum(checksum)
         except ValueError as exc:
             parser.error(str(exc))
+    if not args.standalone:
+        return _app_get(args, checksum)
     try:
         return asyncio.run(_get(args))
     except KeyboardInterrupt:
