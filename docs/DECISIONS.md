@@ -195,3 +195,41 @@ specification (section 4); later entries were made during development.
   negative (callers sleep off the debt). Each download has one; a global bucket can be shared.
   Data is buffered up to 1 MiB per connection and written with positioned writes from a worker
   thread (Windows has no `os.pwrite`, so seek+write is serialized by a lock).
+
+## D35 Database access (M3, 2026-10-30)
+- **Choice:** one SQLite connection in autocommit mode, owned by the engine loop's thread.
+  Writes are small (progress at most every 2 s per job), so they run inline. WAL mode,
+  `synchronous=NORMAL`, foreign keys on. Migrations are numbered `.sql` files, each applied
+  with its `user_version` bump in one transaction; a newer database than the app is refused.
+
+## D36 Secrets at rest (M3, 2026-10-30, approved)
+- **Choice:** cookies and `Cookie`/`Authorization`/`Proxy-Authorization` headers are encrypted
+  with Windows DPAPI (current user, extra entropy) via `ctypes`; other headers are plain JSON.
+  Without DPAPI they are not stored. A blob that cannot be decrypted (other user/PC) is ignored.
+
+## D37 Restart behaviour (M3, 2026-10-30, approved)
+- **Choice:** on start, jobs left in probing/downloading/verifying become PAUSED "interrupted";
+  on a clean exit running jobs are paused the same way. Nothing starts by itself except a queue
+  whose schedule window is open.
+
+## D38 Queue semantics (M3, 2026-10-30)
+- **Choice:** a queue only starts its QUEUED jobs while active (started by the user or its
+  schedule), up to `max_concurrent`, in position order. "Start now" bypasses the queue. Stopping
+  a queue (by hand or at its stop time) puts its jobs back to QUEUED, unlike a user pause
+  (PAUSED). Schedules act on window edges, so a queue stopped by hand is not restarted until
+  its next window.
+
+## D39 After-queue actions (M3, 2026-10-30, approved)
+- **Choice:** `QueueFinished` is emitted only when an active queue runs out of work after
+  running at least one job, never when stopped and never for an empty queue. Sleep/shutdown go
+  through a `PowerActions` interface; M3 ships a no-op, M4 adds the 60 s cancellable countdown.
+
+## D40 Per-host limits (M3, 2026-10-30, approved)
+- **Choice:** 8 connections per host shared by all downloads, granted when a job starts
+  (`min(wanted, free)`); a job waits while its host has no free connection.
+
+## D41 Categories (M3, 2026-10-30, approved)
+- **Choice:** the longest matching extension wins (`tar.gz` before `gz`), ties go to the first
+  category, otherwise the fallback ("Other"). Folders: empty = base folder, relative = inside
+  it, absolute = as is. Defaults: `<Downloads>\Video`, `\Audio`, `\Documents`, `\Compressed`,
+  `\Programs`; Other in `<Downloads>`. `<Downloads>` comes from the Known Folder API.

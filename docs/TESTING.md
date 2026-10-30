@@ -108,3 +108,14 @@ mkdir build\manual
 10. Real internet (optional):
     `.venv\Scripts\opendm-cli.exe get "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe" -o build\manual --standalone --md5 5eddb0b6f12c852725de071ae681dde4`
 11. Clean up: `rmdir /s /q build\manual`.
+
+## Manual checklist: M3
+
+M3 has no user-facing surface yet (the GUI arrives in M4), so it is verified by the automated
+tests: `tests/unit/test_db.py`, `test_repositories.py`, `test_categories_schedule.py` and
+`tests/integration/test_manager.py` (restart, crash recovery, queue concurrency, host limits,
+schedules with a fake clock). Optional check that secrets are encrypted at rest:
+
+1. Run `.venv\Scripts\python.exe -m pytest -q tests\unit\test_repositories.py -k encrypted`.
+2. It writes a database with a cookie, then searches the raw database file for the cookie text;
+   the test passes only if the text is not found.
