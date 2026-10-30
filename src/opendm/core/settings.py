@@ -41,6 +41,8 @@ class EngineSettings:
     state_interval: float = 2.0  # seconds between crash-safe checkpoints
     progress_interval: float = 0.25
     retry: RetryPolicy = field(default_factory=RetryPolicy)
+    proxy: str | None = None  # manual HTTP(S) proxy URL
+    use_system_proxy: bool = True  # environment/registry proxy when no manual proxy
 
     def effective_connections(self) -> int:
         return max(1, min(self.connections, self.per_host_limit, MAX_CONNECTIONS))

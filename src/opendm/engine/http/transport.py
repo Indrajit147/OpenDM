@@ -117,6 +117,7 @@ class HttpxTransport:
         read_timeout: float = 30.0,
         max_redirects: int = 10,
         proxy: str | None = None,
+        use_system_proxy: bool = True,
     ) -> None:
         self._client = httpx.AsyncClient(
             follow_redirects=True,
@@ -124,7 +125,7 @@ class HttpxTransport:
             verify=verify,
             timeout=httpx.Timeout(read_timeout, connect=connect_timeout),
             proxy=proxy,
-            trust_env=True,
+            trust_env=use_system_proxy and proxy is None,
             headers={"User-Agent": DEFAULT_USER_AGENT, "Accept-Encoding": "identity"},
         )
 

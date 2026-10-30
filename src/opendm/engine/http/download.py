@@ -177,7 +177,7 @@ class HttpDownload:
             raise RuntimeError("pause the download before refreshing its link")
         new_headers = dict(headers) if headers is not None else self.request.headers
         request = dataclasses.replace(self.request, url=url, headers=new_headers)
-        transport = self._transport or HttpxTransport(verify=request.verify_tls)
+        transport = self._transport or self._new_transport(request)
         try:
             fresh = await self._retrying(
                 lambda: probe(transport, request.url, request.request_headers())
@@ -197,6 +197,13 @@ class HttpDownload:
         self.request = request
         self._set_state(self.state, "link refreshed")
 
+    def _new_transport(self, request: DownloadRequest) -> HttpxTransport:
+        return HttpxTransport(
+            verify=request.verify_tls,
+            proxy=self.settings.proxy,
+            use_system_proxy=self.settings.use_system_proxy,
+        )
+
     # --- main flow ---------------------------------------------------------------------------
 
     async def run(self) -> DownloadResult | None:
@@ -212,7 +219,7 @@ class HttpDownload:
             raise RuntimeError("download is already running")
         self._task = asyncio.current_task()
         self._stop = None
-        transport = self._transport or HttpxTransport(verify=self.request.verify_tls)
+        transport = self._transport or self._new_transport(self.request)
         try:
             await self._open(transport)
             self._set_state(JobState.DOWNLOADING)
