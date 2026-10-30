@@ -1,0 +1,23 @@
+OpenDM: what this program does on your computer and online
+
+No telemetry, no ads, no account. OpenDM sends nothing to its developers.
+
+Online, OpenDM connects only to:
+- the websites of the downloads you start;
+- github.com and gyan.dev, to download yt-dlp and FFmpeg for video downloads, and only
+  after you agree (you see the sizes and the folder first);
+- github.com for the update check, only if you turn it on (it is off until you choose it in
+  the first-run wizard or Settings -> Updates).
+
+On your computer, setup:
+- installs the programs into the folder you choose, for your Windows account only;
+- registers the browser connection for Chrome and Edge (two registry keys under your
+  account; Settings -> Browser can remove them);
+- keeps settings, history and logs in %LOCALAPPDATA%\OpenDM. Cookies from your browser are
+  stored encrypted and sent only to the site they belong to. Logs never contain link
+  tokens, cookies or passwords.
+
+Uninstalling removes the programs, the video tools and the browser connection, and asks
+whether to delete your settings and history. Your downloaded files are never deleted.
+
+Full privacy policy: https://github.com/Indrajit147/OpenDM/blob/main/docs/PRIVACY.md

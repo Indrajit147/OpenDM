@@ -3,3 +3,4 @@
 *.cmd text eol=crlf
 *.bat text eol=crlf
 *.iss text eol=crlf
+installer/*.txt text eol=crlf

@@ -41,6 +41,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 WizardStyle=modern
 SetupIconFile={#IconFile}
+; Shown before the folder page: what OpenDM sends where (docs\PRIVACY.md, CODE_SIGNING.md).
+InfoBeforeFile=privacy-note.txt
 UninstallDisplayIcon={app}\OpenDM.exe
 UninstallDisplayName={#AppName}
 OutputBaseFilename={#AppName}-{#AppVersion}-setup
