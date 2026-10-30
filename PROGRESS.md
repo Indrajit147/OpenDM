@@ -22,6 +22,9 @@
 - 1.0.0-rc.1 build: `smoke_dist.py` 14/14; `perf_check.py` idle 78 MB, 10 downloads peak
   123 MB working set / 85 MB private, window-thread ping max 2 ms, all 10 still running.
 - Sizes: setup 27 MB, portable ZIP 45 MB. Store ZIP 32 KB.
+- GitHub: CI green on 74df9bc (after fixing the new pipe test for the runner's built-in
+  Administrator, listed as the alias LA). Release workflow for `v1.0.0-rc.1` green (5.5 min);
+  the draft is waiting to be published by the user.
 
 ### Waiting on the user
 - Release checklist (docs/TESTING.md, M9), then the go-ahead for `v1.0.0`.
