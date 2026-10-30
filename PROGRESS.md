@@ -71,6 +71,12 @@
   an hour for anonymous callers were used up (Claude's CI polling from the same connection).
   The updater now falls back to the releases feed; the real feed finds rc.2 from rc.1. This
   is in the next build (rc.3), not in the installed rc.1.
+- Step 7 (in-app update rc.1 -> rc.2) worked: download, SHA-256 check, setup after exit,
+  restart, tools kept. But no setup tonight left an uninstall entry or browser keys. Cause:
+  the setups were started from the Claude app's Terminal panel, which keeps a private copy
+  of the registry (a test key written there is invisible outside; the setup log shows every
+  registry write succeeding). Not an OpenDM bug. Fix on the user's PC: quit OpenDM, run the
+  setup once from File Explorer, start OpenDM from the Start menu. TESTING.md now warns.
 - On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes

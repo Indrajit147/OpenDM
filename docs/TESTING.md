@@ -312,6 +312,11 @@ creates a **draft** release; nothing is public until you press Publish.
 
 Manual checklist:
 
+> **Start setups and OpenDM from File Explorer or the Start menu, not from the Claude app's
+> Terminal panel.** That panel keeps a private copy of the registry: a setup started there
+> reports success, but its uninstall entry and browser keys never reach Windows, and an
+> OpenDM started from there passes the same isolation on to the installer it launches.
+
 1. On GitHub -> Actions, the "Release" run for `v0.8.0-rc.1` is green. Releases shows a
    draft "OpenDM 0.8.0-rc.1" with `OpenDM-0.8.0-rc.1-setup.exe`, the portable ZIP and
    `SHA256SUMS.txt`, and the notes from CHANGELOG.md. Edit it, tick "Set as a pre-release"
