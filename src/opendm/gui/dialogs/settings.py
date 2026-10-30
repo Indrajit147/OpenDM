@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from opendm.core.app_settings import AppSettings, ProxyMode
 from opendm.core.models import Category
 from opendm.core.settings import MAX_CONNECTIONS
+from opendm.gui.dialogs.browser import BrowserPanel
 from opendm.gui.dialogs.tools import ToolsPanel
 
 
@@ -60,6 +61,7 @@ class SettingsDialog(QDialog):
         categories: list[Category],
         parent: QWidget | None = None,
         tools_panel: ToolsPanel | None = None,
+        browser_panel: BrowserPanel | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Settings"))
@@ -145,9 +147,9 @@ class SettingsDialog(QDialog):
         form.addRow(self.tr("Theme:"), self.theme)
         tabs.addTab(appearance, self.tr("Appearance"))
 
-        tabs.addTab(_note(self.tr(
-            "Browser integration (Chrome and Edge extension) arrives in a later version."
-        )), self.tr("Browser"))  # fmt: skip
+        self.browser_panel = browser_panel
+        if browser_panel is not None:
+            tabs.addTab(browser_panel, self.tr("Browser"))
         tools = QWidget()
         form = QFormLayout(tools)
         self.tools_dir = QLineEdit(str(settings.tools_dir))

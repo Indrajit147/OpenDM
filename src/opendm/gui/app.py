@@ -8,12 +8,13 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from opendm.core.app_settings import AppSettings
 from opendm.core.batch import parse_url_list
-from opendm.core.branding import APP_NAME
+from opendm.core.branding import APP_MUTEX, APP_NAME, APP_USER_MODEL_ID
 from opendm.core.bridge import EngineThread
 from opendm.core.errors import ErrorKind
 from opendm.core.events import Finished, PowerRequested, ToolProgress
@@ -21,12 +22,14 @@ from opendm.core.models import AfterAction, DownloadRequest, Job
 from opendm.core.paths import app_data_dir, database_path, default_exe_dir, downloads_dir
 from opendm.core.redact import redact_url
 from opendm.core.settings import EngineSettings
+from opendm.core.windows import set_app_user_model_id
 from opendm.discovery.categories import category_folder, match_category
 from opendm.engine.http.naming import filename_from_url
 from opendm.engine.media.drm import PROTECTED_MESSAGE
 from opendm.engine.media.formats import MediaOptions
 from opendm.engine.media.ytdlp import MediaInfo
 from opendm.gui.clipboard import ClipboardMonitor
+from opendm.gui.dialogs.browser import BrowserPanel
 from opendm.gui.dialogs.countdown import CountdownDialog
 from opendm.gui.dialogs.links import LinkPickerDialog
 from opendm.gui.dialogs.media import MediaDialog
@@ -40,6 +43,7 @@ from opendm.gui.main_window import MainWindow
 from opendm.gui.power import perform_power
 from opendm.gui.theme import SystemThemeFollower, apply_theme
 from opendm.gui.tray import Tray
+from opendm.host import register as native_host
 from opendm.ipc import client as ipc_client
 from opendm.ipc.protocol import Request
 from opendm.ipc.server import IpcServer
@@ -180,6 +184,23 @@ class Application(QObject):
         apply_theme(self.qapp, settings.theme)
         self.clipboard.enabled = settings.clipboard_monitor
 
+    def _browser_panel(self) -> BrowserPanel | None:
+        if sys.platform != "win32":
+            return None
+
+        def register() -> Path:
+            host, folder = native_host.registration_target()
+            return native_host.register(host, folder)
+
+        def unregister() -> None:
+            native_host.unregister(manifest_dir=native_host.registration_target()[1])
+
+        return BrowserPanel(
+            status=native_host.status, register=register, unregister=unregister,
+            extension_dir=native_host.extension_dir(),
+            open_folder=lambda p: QDesktopServices.openUrl(QUrl.fromLocalFile(str(p))),
+        )  # fmt: skip
+
     def open_settings(self) -> SettingsDialog:
         panel = ToolsPanel(
             self.client,
@@ -188,7 +209,9 @@ class Application(QObject):
             update_check=self.settings.tool_update_check,
         )
         self.tools_panel = panel
-        dialog = SettingsDialog(self.settings, self.window.categories, self.window, panel)
+        dialog = SettingsDialog(
+            self.settings, self.window.categories, self.window, panel, self._browser_panel()
+        )
         dialog.accepted.connect(lambda: self._settings_accepted(dialog))
         dialog.setModal(True)
         dialog.show()
@@ -534,6 +557,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 1
         return 1
 
+    running = InstanceLock(APP_MUTEX)  # seen by the installer (AppMutex); "lock" decides who runs
+    running.acquire()
+    set_app_user_model_id(APP_USER_MODEL_ID)
     qapp = QApplication(sys.argv[:1])
     qapp.setApplicationName(APP_NAME)
     qapp.setWindowIcon(app_icon())
@@ -544,6 +570,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return qapp.exec()
     finally:
         app.shutdown()
+        running.release()
         lock.release()
 
 

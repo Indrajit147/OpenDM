@@ -18,6 +18,18 @@ HOST_EXE: Final = f"{APP_SLUG}-host.exe"
 # Native Messaging host name: lowercase letters, digits, "_" and "." only.
 NATIVE_HOST_NAME: Final = f"io.github.indrajit147.{APP_SLUG}"
 
+# Extensions allowed to start the host (fixed by the manifest "key"; store IDs are added at
+# release).
+EXTENSION_IDS: Final = ("pjkejmcidaikllfpgmfginpahcockofb",)
+
+# Held by the running app so the installer and uninstaller can ask the user to close it
+# (Inno Setup AppMutex). Fixed, unlike the per-user pipe name.
+APP_MUTEX: Final = f"{APP_NAME}-AppRunning"
+
+# Windows app identity: groups taskbar buttons and names the app in notifications. The Start
+# menu shortcut made by the installer carries the same ID.
+APP_USER_MODEL_ID: Final = f"Indrajit147.{APP_NAME}"
+
 # Named pipe used for IPC and as the single-instance lock (made per-user at runtime).
 PIPE_NAME: Final = f"{APP_SLUG}-ipc"
 

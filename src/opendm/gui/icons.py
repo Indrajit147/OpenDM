@@ -1,9 +1,13 @@
 """The app icon, drawn in code (original artwork, GPL like the rest of OpenDM)."""
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+import struct
+from pathlib import Path
+
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 
 _SIZES = (16, 24, 32, 48, 64, 128, 256)
+ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 
 
 def _render(size: int) -> QPixmap:
@@ -44,3 +48,27 @@ def app_icon() -> QIcon:
     for size in _SIZES:
         icon.addPixmap(_render(size))
     return icon
+
+
+def _png(size: int) -> bytes:
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    _render(size).save(buffer, "PNG")
+    buffer.close()
+    return bytes(data.data())
+
+
+def write_ico(path: Path) -> Path:
+    """Write a Windows .ico with PNG images (Vista+ format) for the exes and the installer."""
+    images = [_png(size) for size in ICO_SIZES]
+    header = struct.pack("<HHH", 0, 1, len(images))
+    offset = len(header) + 16 * len(images)
+    entries = b""
+    for size, image in zip(ICO_SIZES, images, strict=True):
+        side = 0 if size >= 256 else size  # 0 means 256
+        entries += struct.pack("<BBBBHHII", side, side, 0, 0, 1, 32, len(image), offset)
+        offset += len(image)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(header + entries + b"".join(images))
+    return path
