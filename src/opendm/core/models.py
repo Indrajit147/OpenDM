@@ -1,8 +1,12 @@
-"""Plain data models shared by the engines, CLI and (later) GUI."""
+"""Plain data models shared by the engines, storage, CLI and (later) GUI."""
 
+import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+
+MAIN_QUEUE_ID = 1
 
 
 class JobState(StrEnum):
@@ -71,3 +75,75 @@ class DownloadResult:
     path: Path
     size: int
     sha256: str
+
+
+class AfterAction(StrEnum):
+    """What to do when a queue has finished (spec 6.3)."""
+
+    NONE = "none"
+    SLEEP = "sleep"
+    SHUTDOWN = "shutdown"
+
+
+ALL_DAYS = 0b1111111  # bit 0 = Monday ... bit 6 = Sunday
+
+
+@dataclass
+class Queue:
+    name: str
+    id: int | None = None
+    max_concurrent: int = 3
+    enabled: bool = True
+    start_time: str | None = None  # "HH:MM", local time
+    stop_time: str | None = None
+    days: int = ALL_DAYS
+    after_action: AfterAction = AfterAction.NONE
+    position: int = 0
+
+    @property
+    def scheduled(self) -> bool:
+        return self.enabled and self.start_time is not None
+
+
+@dataclass
+class Category:
+    name: str
+    extensions: tuple[str, ...] = ()  # lowercase, without dots; may be "tar.gz"
+    folder: str = ""  # "" = base download folder; relative = inside it; absolute = as is
+    fallback: bool = False  # used when no extension matches
+    id: int | None = None
+    position: int = 0
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass
+class Job:
+    """A download as stored in the database."""
+
+    request: DownloadRequest
+    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    queue_id: int = MAIN_QUEUE_ID
+    category_id: int | None = None
+    position: int = 0
+    state: JobState = JobState.QUEUED
+    message: str = ""
+    final_path: Path | None = None
+    size: int | None = None
+    downloaded: int = 0
+    connections: int | None = None  # None = engine default
+    relinked: bool = False  # the URL was refreshed; continue the partial file from it
+    error_kind: str | None = None
+    error_message: str | None = None
+    sha256: str | None = None
+    created_at: datetime = field(default_factory=utc_now)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+    @property
+    def name(self) -> str:
+        if self.final_path is not None:
+            return self.final_path.name
+        return self.request.filename or self.request.url.rsplit("/", 1)[-1] or self.request.url
