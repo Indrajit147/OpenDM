@@ -71,15 +71,22 @@ def test_get_bad_url_is_usage_error(tmp_path: Path, capsys) -> None:
     assert "unsupported URL scheme" in capsys.readouterr().err
 
 
-def test_get_requires_standalone_until_ipc_exists(server: FaultServer, capsys) -> None:
-    assert main(["get", server.url("/file/a.bin?size=10")]) == 2
-    assert "--standalone" in capsys.readouterr().err
+def test_get_without_app_suggests_standalone(server: FaultServer, capsys) -> None:
+    assert main(["get", server.url("/file/a.bin?size=10")]) == 1
+    err = capsys.readouterr().err
+    assert "not running" in err and "--standalone" in err
 
 
 @pytest.mark.parametrize("command", [["list"], ["pause", "1"], ["resume", "1"], ["remove", "1"]])
-def test_app_commands_not_available_yet(command: list[str], capsys) -> None:
-    assert main(command) == 2
-    assert "running OpenDM app" in capsys.readouterr().err
+def test_app_commands_without_app(command: list[str], capsys) -> None:
+    assert main(command) == 1
+    assert "not running" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("flag", [["--restart"], ["--insecure"], ["--continue", "x.odm-part"]])
+def test_standalone_only_flags(server: FaultServer, flag: list[str], capsys) -> None:
+    assert main(["get", server.url("/file/a.bin?size=10"), *flag]) == 2
+    assert "only work with --standalone" in capsys.readouterr().err
 
 
 def test_bad_header_is_usage_error(server: FaultServer, tmp_path: Path) -> None:
