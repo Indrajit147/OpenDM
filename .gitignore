@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build output (PyInstaller / Inno Setup)
+build/
+dist/
+
+# Generated test fixtures (created by scripts, never committed)
+tests/fixtures/*
+!tests/fixtures/.gitkeep
+
+# Partial downloads and secrets
+*.odm-part
+*.odm-state
+cookies*.txt
+.env
+
+# Local Claude Code settings
+.claude/settings.local.json
