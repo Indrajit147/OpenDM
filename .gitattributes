@@ -1,2 +1,4 @@
 # Store text with LF in the repo; let Git pick the working-tree line ending per platform.
 * text=auto
+*.cmd text eol=crlf
+*.bat text eol=crlf
