@@ -89,6 +89,25 @@ def test_release_notes_for_a_prerelease_use_the_final_section() -> None:
     assert "Installer" not in notes
 
 
+def test_release_notes_join_wrapped_lines() -> None:
+    # GitHub keeps every line break in release notes, so wrapped list items are joined.
+    text = """## [1.0.0]
+### Added
+- A long item that wraps
+  onto a second line
+  and a third.
+- Short.
+
+Plain paragraph
+wrapped too.
+"""
+    notes = _release_notes_module().release_notes(text, "1.0.0")
+    assert notes == (
+        "### Added\n- A long item that wraps onto a second line and a third.\n- Short.\n\n"
+        "Plain paragraph wrapped too."
+    )
+
+
 def test_release_notes_missing_section() -> None:
     with pytest.raises(LookupError):
         _release_notes_module().release_notes(CHANGELOG, "0.9.0")

@@ -22,8 +22,24 @@ def release_notes(changelog: str, version: str) -> str:
         for section in sections[1:]:
             heading, _, body = section.partition("\n")
             if heading.startswith(f"[{wanted}]"):
-                return body.strip()
+                return unwrap(body.strip())
     raise LookupError(f"CHANGELOG.md has no section for {version}")
+
+
+_BLOCK_START = re.compile(r"(#|[-*+] |\d+\. |```|\||>)")
+
+
+def unwrap(text: str) -> str:
+    """Join hard-wrapped lines: GitHub keeps every line break in release notes."""
+    lines: list[str] = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        joinable = lines and lines[-1].strip() and not lines[-1].lstrip().startswith("#")
+        if stripped and joinable and not _BLOCK_START.match(stripped):
+            lines[-1] = lines[-1].rstrip() + " " + stripped
+        else:
+            lines.append(line.rstrip())
+    return "\n".join(lines)
 
 
 def main(argv: list[str]) -> int:

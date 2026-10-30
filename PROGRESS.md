@@ -61,8 +61,12 @@
 - `v0.8.0-rc.1` is published as a pre-release (the real update check finds it from 0.7.0 with
   "Include test versions" on, and nothing newer from rc.1). `v0.8.0-rc.2` was built by the
   Release workflow (green) as a draft.
-- User installs rc.1, runs the M8 checklist (docs/TESTING.md) and at step 7 publishes the rc.2
-  draft to see the update dialog and Install.
+- On the user's PC (checked 2026-10-31): rc.1 installed in `D:\Softtt\OpenDM`; yt-dlp and
+  FFmpeg moved from Downloads to `D:\Softtt\OpenDM\tools` (setting updated, nothing left in
+  Downloads); "Check for a new OpenDM" is on. Not done yet: "Include test versions" is off and
+  rc.2 is still a draft, so step 7 (update to rc.2) has not run.
+- Fixed after the first release: GitHub showed the notes with a line break at every wrapped
+  CHANGELOG line; `release_notes.py` now joins them (from the next release on).
 - On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes
