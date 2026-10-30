@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import json
+import re
 import sys
 import threading
 import uuid
@@ -131,6 +132,30 @@ def test_pipe_is_open_only_to_this_user(qtbot, served) -> None:
         sd, 1, 4, ctypes.byref(text), None
     )
     sddl = text.value or ""
-    for broad in ("WD", "AU", "BU", "AN"):  # Everyone, Authenticated Users, Users, Anonymous
-        assert f";;;{broad})" not in sddl, sddl
-    assert "S-1-5-21-" in sddl  # this user's SID is granted access
+    trustees = re.findall(r"\(A;[^;]*;[^;]*;[^;]*;[^;]*;([^)]+)\)", sddl)
+    assert trustees, sddl
+    me = _current_user_sid()
+    # Every "allow" entry is for this user (written as a SID or an alias such as LA).
+    assert all(_sid_string(t) == me for t in trustees), (sddl, me)
+
+
+def _sid_string(text: str) -> str:
+    """S-1-... form of a SID or SDDL alias ("LA", "WD"...)."""
+    import ctypes
+    from ctypes import wintypes
+
+    adv = ctypes.WinDLL("advapi32", use_last_error=True)
+    sid, out = ctypes.c_void_p(), wintypes.LPWSTR()
+    adv.ConvertStringSidToSidW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p)]
+    adv.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)]
+    assert adv.ConvertStringSidToSidW(text, ctypes.byref(sid)), text
+    assert adv.ConvertSidToStringSidW(sid, ctypes.byref(out))
+    return out.value or ""
+
+
+def _current_user_sid() -> str:
+    import subprocess
+
+    out = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True,
+                         text=True, check=True).stdout  # fmt: skip
+    return out.strip().split(",")[-1].strip('"')
