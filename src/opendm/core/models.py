@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 MAIN_QUEUE_ID = 1
 
@@ -144,6 +145,10 @@ class Job:
 
     @property
     def name(self) -> str:
+        """File name if known, else the last URL path segment (never the query string)."""
         if self.final_path is not None:
             return self.final_path.name
-        return self.request.filename or self.request.url.rsplit("/", 1)[-1] or self.request.url
+        if self.request.filename:
+            return self.request.filename
+        last = urlsplit(self.request.url).path.rsplit("/", 1)[-1]
+        return unquote(last, errors="replace") or self.request.url
