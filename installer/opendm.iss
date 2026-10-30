@@ -1,9 +1,12 @@
 ; OpenDM per-user installer (Inno Setup 6). No admin rights needed. Built by scripts\build.py:
-;   ISCC /DAppVersion=0.7.0 /DSourceDir=...\dist\OpenDM /DIconFile=...\build\opendm.ico opendm.iss
+;   ISCC /DAppVersion=0.8.0-rc.1 /DFileVersion=0.8.0.0 /DSourceDir=...\dist\OpenDM /DIconFile=...\build\opendm.ico opendm.iss
 ; Decision D12; see docs\DECISIONS.md (D60+) for the choices below.
 
 #ifndef AppVersion
   #error Pass /DAppVersion=x.y.z (scripts\build.py does this)
+#endif
+#ifndef FileVersion
+  #error Pass /DFileVersion=x.y.z.0 (four numbers; scripts\build.py does this)
 #endif
 #ifndef SourceDir
   #error Pass /DSourceDir=<dist\OpenDM folder>
@@ -24,7 +27,8 @@ AppPublisher=Indrajit Gupta
 AppPublisherURL=https://github.com/Indrajit147/OpenDM
 AppSupportURL=https://github.com/Indrajit147/OpenDM/issues
 AppCopyright=Copyright (C) 2026 Indrajit Gupta
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#FileVersion}
+VersionInfoProductTextVersion={#AppVersion}
 ; Per user, no UAC prompt. {userpf} is %LOCALAPPDATA%\Programs; the folder page allows D:/E:.
 PrivilegesRequired=lowest
 DefaultDirName={userpf}\{#AppName}
@@ -78,10 +82,14 @@ Filename: "{app}\OpenDM.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; Flag
 
 [UninstallDelete]
 Type: files; Name: "{app}\{#HostName}.json"
+; yt-dlp and FFmpeg, which the app downloads into its own folder (D66); upgrades keep them.
+Type: filesandordirs; Name: "{app}\tools"
+; Installers left by the in-app updater (D65).
+Type: filesandordirs; Name: "{app}\updates"
 
 [Code]
-// Downloaded files are never touched. Settings, history and helper tools in the data folder
-// are deleted only if the user says so (default: keep; a silent uninstall keeps them unless
+// Downloaded files are never touched. Settings and history in the data folder (and helper
+// tools that 0.7 kept there) are deleted only if the user says so (default: keep; a silent uninstall keeps them unless
 // /DELETEDATA=1 is passed).
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
@@ -97,7 +105,7 @@ begin
     Answer := IDYES
   else
     Answer := SuppressibleMsgBox(
-      'Also delete your OpenDM settings, download history and helper tools?' + #13#10 + #13#10 +
+      'Also delete your OpenDM settings and download history?' + #13#10 + #13#10 +
       Data + #13#10 + #13#10 +
       'Files you downloaded are not affected.',
       mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO);

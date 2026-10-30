@@ -1,0 +1,96 @@
+name: Release
+
+# Pushing a version tag (v0.8.0, or v0.8.0-rc.1 for a test release) builds and tests
+# everything and creates a DRAFT release. Nothing is public until someone presses Publish
+# on GitHub (decision D64).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # create the draft release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: python -m pip install -e .[dev]
+
+      - name: Tag must match the app version
+        shell: pwsh
+        run: |
+          $version = python -c "import opendm; print(opendm.__version__)"
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            Write-Output "::error::tag ${{ github.ref_name }} does not match opendm.__version__ ($version)"
+            exit 1
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Extension tests
+        run: node --test extension/tests/logic.test.mjs extension/tests/manifest.test.mjs
+
+      - name: Test
+        run: python -m pytest -q
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --version=6.7.4 --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) { Write-Output "::error::ISCC.exe not found"; exit 1 }
+          "ISCC=$iscc" >> $env:GITHUB_ENV
+
+      - name: Build installer and portable ZIP
+        run: python scripts/build.py --iscc "${{ env.ISCC }}"
+
+      - name: Smoke test (portable ZIP)
+        run: python scripts/smoke_dist.py
+
+      - name: Install, upgrade and uninstall test
+        run: python scripts/installer_test.py
+
+      - name: Checksums and release notes
+        shell: pwsh
+        run: |
+          $files = @("OpenDM-$env:VERSION-setup.exe", "OpenDM-$env:VERSION-portable.zip")
+          $lines = foreach ($name in $files) {
+            $hash = (Get-FileHash "dist/$name" -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name"
+          }
+          [IO.File]::WriteAllText("dist/SHA256SUMS.txt", ($lines -join "`n") + "`n")
+          Get-Content dist/SHA256SUMS.txt
+          python scripts/release_notes.py "${{ github.ref_name }}" > dist/notes.md
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $flags = @("--draft", "--title", "OpenDM $env:VERSION", "--notes-file", "dist/notes.md")
+          if ($env:VERSION.Contains("-")) { $flags += "--prerelease" }
+          gh release create "${{ github.ref_name }}" @flags `
+            "dist/OpenDM-$env:VERSION-setup.exe" `
+            "dist/OpenDM-$env:VERSION-portable.zip" `
+            "dist/SHA256SUMS.txt"

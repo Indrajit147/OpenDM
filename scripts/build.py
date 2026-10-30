@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from opendm import __version__  # noqa: E402
 from opendm.core.paths import PORTABLE_FLAG  # noqa: E402
+from opendm.core.version import parse_version  # noqa: E402
 
 
 def make_icon() -> Path:
@@ -61,7 +62,8 @@ def portable_zip(app_dir: Path) -> Path:
 
 def installer(iscc: Path) -> Path:
     subprocess.run(
-        [str(iscc), "/Qp", f"/DAppVersion={__version__}", f"/DSourceDir={DIST / 'OpenDM'}",
+        [str(iscc), "/Qp", f"/DAppVersion={__version__}",
+         f"/DFileVersion={parse_version(__version__).windows}", f"/DSourceDir={DIST / 'OpenDM'}",
          f"/DIconFile={BUILD / 'opendm.ico'}", f"/O{DIST}",
          str(ROOT / "installer" / "opendm.iss")],
         check=True, cwd=ROOT,

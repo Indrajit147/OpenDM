@@ -9,13 +9,17 @@ import pytest
 
 from opendm import __version__
 from opendm.core import branding
+from opendm.core.version import parse_version
 from opendm.core.windows import set_app_user_model_id
 from opendm.ipc.single_instance import InstanceLock
 
 
 def test_version_has_one_source() -> None:
-    assert re.fullmatch(r"\d+\.\d+\.\d+", __version__)
-    assert version("opendm") == __version__  # pyproject reads it from opendm/__init__.py
+    v = parse_version(__version__)  # raises if the format is wrong
+    # pyproject reads it from opendm/__init__.py; pip writes "0.8.0-rc.1" as "0.8.0rc1".
+    short = {"alpha": "a", "beta": "b", "rc": "rc"}
+    expected = v.base + (f"{short[v.pre]}{v.pre_number}" if v.pre else "")
+    assert version("opendm") == expected
 
 
 def test_app_mutex_name_is_fixed_and_plain() -> None:

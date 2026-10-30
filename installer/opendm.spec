@@ -20,8 +20,9 @@ ROOT = Path(SPECPATH).parent
 SRC = ROOT / "src"
 BUILD = ROOT / "build"
 ICON = str(BUILD / "opendm.ico")
-VERSION = re.search(r'__version__ = "([\d.]+)"', (SRC / "opendm" / "__init__.py").read_text()).group(1)
-NUMBERS = tuple(int(x) for x in VERSION.split(".")) + (0,)
+VERSION = re.search(r'__version__ = "([^"]+)"', (SRC / "opendm" / "__init__.py").read_text()).group(1)
+# Windows wants four numbers; a pre-release (0.8.0-rc.1) shows its full name in the strings.
+NUMBERS = tuple(int(x) for x in re.match(r"(\d+)\.(\d+)\.(\d+)", VERSION).groups()) + (0,)
 
 QT_ONLY = ["PySide6", "shiboken6"]
 # Not used anywhere in OpenDM; keeps the folder smaller.

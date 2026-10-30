@@ -114,8 +114,13 @@ def main() -> int:
     try:
         install(setup, "install.log")
         check_installed()
+        # What the app adds later (D65, D66): an upgrade keeps it, the uninstaller removes it.
+        for added in (APP / "tools" / "yt-dlp" / "yt-dlp.exe", APP / "updates" / "old-setup.exe"):
+            added.parent.mkdir(parents=True, exist_ok=True)
+            added.write_bytes(b"added by the app")
         install(setup, "upgrade.log")  # same version again: the upgrade path
         check_installed()
+        check((APP / "tools" / "yt-dlp" / "yt-dlp.exe").exists(), "an upgrade keeps the tools")
         uninstall()
         leftovers = [str(p.relative_to(APP)) for p in APP.rglob("*")] if APP.exists() else []
         check(not leftovers, f"no files left in the install folder {leftovers[:5]}")
