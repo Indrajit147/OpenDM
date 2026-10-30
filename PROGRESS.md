@@ -53,6 +53,12 @@
 ### Next
 - User runs the M7 manual checklist (docs/TESTING.md) and reviews.
 - On approval: plan **M8 Release pipeline + updater**.
+- Also in M8 (user request, 2026-10-30): yt-dlp/FFmpeg go in their own folder chosen at install
+  time (installer: next to the app's data, e.g. `%LOCALAPPDATA%\OpenDM\tools`; portable: `data\tools`),
+  never in Downloads, so cleaning Downloads cannot remove them. Existing installs with tools in
+  Downloads get moved. Also: if tools go missing, offer to reinstall them instead of failing every
+  job; report a missing yt-dlp.exe as "yt-dlp is not installed"; a video link inside a Mix/playlist
+  defaults to that one video.
 
 ### Environment notes
 - No `gh` CLI; pushes use plain `git` via Git Credential Manager from the Terminal panel tab.
