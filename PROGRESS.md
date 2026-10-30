@@ -17,7 +17,9 @@
   note.
 - Version 1.0.0-rc.1, CHANGELOG [1.0.0]. rc.1 published and installed on the user's PC
   through the in-app update (logs and diagnostics checked there).
-- The user approved the release: version 1.0.0, tag `v1.0.0` (2026-10-31).
+- The user approved the release: version 1.0.0, tag `v1.0.0` (2026-10-31). Release run green
+  (5 min); the user published it as the latest release. The real update check offers 1.0.0
+  to 0.8.0-rc.2 and 1.0.0-rc.1 (test versions off) and nothing newer to 1.0.0.
 
 ### Results
 - `pytest` with real tools: 770 passed. Node: 13 passed. `ruff check`/`format`: clean.
@@ -29,7 +31,6 @@
   the draft is waiting to be published by the user.
 
 ### Waiting on the user
-- Publish the `v1.0.0` draft on GitHub as the latest release (not a pre-release).
 - Optional, the user's decisions: Chrome Web Store account (one-time fee), Edge Add-ons
   account (free), SignPath Foundation application, GitHub two-factor authentication and
   private vulnerability reporting (repository Settings -> Security).
