@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import json
+import sys
 import threading
 import uuid
 from collections.abc import Callable
@@ -91,3 +92,45 @@ def test_pipe_alone_is_not_a_single_instance_lock(qtbot, served) -> None:
     other = IpcServer(lambda req: None)
     other.listen(name)
     other.close()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows pipe permissions")
+def test_pipe_is_open_only_to_this_user(qtbot, served) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    name, _ = served
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    adv = ctypes.WinDLL("advapi32", use_last_error=True)
+    k32.CreateFileW.restype = wintypes.HANDLE
+    k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                                wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]  # fmt: skip
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    # Open the pipe only to read its permissions (READ_CONTROL, OPEN_EXISTING).
+    handle = k32.CreateFileW(rf"\\.\pipe\{name}", 0x20000, 0, None, 3, 0, None)
+    assert handle and handle != wintypes.HANDLE(-1).value, ctypes.get_last_error()
+    sd, dacl = ctypes.c_void_p(), ctypes.c_void_p()
+    adv.GetSecurityInfo.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p),
+    ]  # fmt: skip
+    try:
+        err = adv.GetSecurityInfo(
+            handle, 6, 4, None, None, ctypes.byref(dacl), None, ctypes.byref(sd)
+        )  # SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION
+    finally:
+        k32.CloseHandle(handle)
+        qtbot.wait(200)  # let the server see the connect and the disconnect
+    assert err == 0, err
+    text = wintypes.LPWSTR()
+    adv.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [
+        ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
+        ctypes.POINTER(wintypes.LPWSTR), ctypes.c_void_p,
+    ]  # fmt: skip
+    assert adv.ConvertSecurityDescriptorToStringSecurityDescriptorW(
+        sd, 1, 4, ctypes.byref(text), None
+    )
+    sddl = text.value or ""
+    for broad in ("WD", "AU", "BU", "AN"):  # Everyone, Authenticated Users, Users, Anonymous
+        assert f";;;{broad})" not in sddl, sddl
+    assert "S-1-5-21-" in sddl  # this user's SID is granted access
