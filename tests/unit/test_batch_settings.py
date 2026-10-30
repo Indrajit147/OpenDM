@@ -12,7 +12,10 @@ from opendm.core.batch import BatchError, expand_pattern, parse_url_list
     ("pattern", "expected"),
     [
         ("http://h/a.zip", ["http://h/a.zip"]),
-        ("http://h/file[1-3].zip", ["http://h/file1.zip", "http://h/file2.zip", "http://h/file3.zip"]),
+        (
+            "http://h/file[1-3].zip",
+            ["http://h/file1.zip", "http://h/file2.zip", "http://h/file3.zip"],
+        ),
         ("http://h/f[08-10].z", ["http://h/f08.z", "http://h/f09.z", "http://h/f10.z"]),
         ("http://h/[a-c].txt", ["http://h/a.txt", "http://h/b.txt", "http://h/c.txt"]),
         ("http://h/[1-2]/[x-y]", ["http://h/1/x", "http://h/1/y", "http://h/2/x", "http://h/2/y"]),

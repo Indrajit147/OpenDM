@@ -1,5 +1,6 @@
 """User settings with defaults; stored as JSON values in the settings table."""
 
+import contextlib
 import dataclasses
 from dataclasses import dataclass
 from enum import StrEnum
@@ -52,10 +53,8 @@ class AppSettings:
         for f in dataclasses.fields(cls):
             if f.name not in data:
                 continue
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 values[f.name] = _coerce(f.name, data[f.name], values[f.name])
-            except (TypeError, ValueError):
-                pass
         return cls(**values)
 
     def engine_settings(self) -> EngineSettings:
