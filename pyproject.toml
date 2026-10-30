@@ -57,7 +57,10 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # basetemp keeps test downloads inside the repo (off C:); pytest clears it each run.
 addopts = "-m 'not live' --basetemp=build/pytest-tmp"
-markers = ["live: hits the real internet; skipped by default"]
+markers = [
+    "live: hits the real internet; skipped by default",
+    "tools: needs real yt-dlp/FFmpeg (set OPENDM_TEST_TOOLS); skipped otherwise",
+]
 asyncio_mode = "auto"
 qt_api = "pyside6"
 asyncio_default_fixture_loop_scope = "function"
