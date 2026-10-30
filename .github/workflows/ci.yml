@@ -32,4 +32,21 @@ jobs:
           ruff format --check .
 
       - name: Test
-        run: python -m pytest -q --cov --cov-report=term-missing
+        run: python -m pytest -q --cov --cov-report=term-missing --junitxml=pytest-report.xml
+
+      - name: Annotate test failures
+        if: failure()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path pytest-report.xml)) {
+            Write-Output "::error::pytest produced no report (crashed before running tests)"
+            exit 0
+          }
+          [xml]$report = Get-Content pytest-report.xml
+          foreach ($case in $report.SelectNodes('//testcase[failure or error]')) {
+            $node = $case.SelectSingleNode('failure|error')
+            $text = "$($node.message)`n$($node.InnerText)"
+            if ($text.Length -gt 1500) { $text = $text.Substring($text.Length - 1500) }
+            $text = $text -replace '%', '%25' -replace "`r", '' -replace "`n", '%0A'
+            Write-Output "::error title=$($case.classname)::$($case.name)%0A$text"
+          }
