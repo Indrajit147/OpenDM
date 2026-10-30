@@ -2,7 +2,7 @@
 
 A free, open-source, no-subscription download manager for Windows.
 
-> **Status: early development (milestone M5, video and audio).** It works from source; there is
+> **Status: early development (milestone M6, browser integration).** It works from source; there is
 > no installer yet. See [PROGRESS.md](PROGRESS.md) and the
 > [project specification](docs/PROJECT_SPEC.md).
 
@@ -17,12 +17,14 @@ Working now:
   FFmpeg merging: quality picker, audio-only MP3/M4A, subtitles, playlists. The tools are
   downloaded only with your consent and verified against their published checksums.
   DRM-protected content is not supported.
+- Chrome and Edge extension (load unpacked for now): download takeover with cookies, context
+  menu, "download all links", video button and media detection. See
+  [docs/PRIVACY.md](docs/PRIVACY.md) for what it sends and why each permission is needed.
 - `opendm-cli` command line, talking to the running app or standalone
 - No telemetry, no ads, no subscription
 
 Planned:
 
-- Chrome and Edge extension: download takeover, context menu, media detection
 - Per-user installer (no admin rights) and a portable build
 
 ## Disclaimer
@@ -45,7 +47,9 @@ D:\Tools\Python312\python.exe -m venv .venv
 ```
 
 Run the app with `.venv\Scripts\opendm.exe` (or `.venv\Scripts\python.exe -m opendm`), and the
-command line with `.venv\Scripts\opendm-cli.exe --help`.
+command line with `.venv\Scripts\opendm-cli.exe --help`. For the browser extension, run
+`scripts\register_host_dev.cmd` once and load `extension\` unpacked (steps in
+[docs/TESTING.md](docs/TESTING.md), M6).
 
 ## License
 

@@ -44,3 +44,4 @@ consenting, and they run as separate programs.
 | pytest-qt | MIT |
 | ruff | MIT |
 | setuptools (build backend) | MIT |
+| Node.js 26 (runs the extension's tests; the extension itself has no dependencies) | MIT |

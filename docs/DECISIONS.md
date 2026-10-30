@@ -326,3 +326,40 @@ specification (section 4); later entries were made during development.
   project: `D:\Projects\opendm\tools-bin`, git-ignored). "Use existing..." points at copies the
   user already has (stored as `ytdlp_path`/`ffmpeg_path`). The weekly update check is opt-in and
   only notifies; installing always needs a click.
+
+## D56 Native Messaging host (M6, 2026-10-30, approved)
+- **Choice:** `python -m opendm.host` (later `opendm-host.exe`) reads one framed message
+  (4-byte little-endian length + UTF-8 JSON, at most 4 MiB in, 1 MiB out), translates it to an
+  IPC command (`status`→`ping`, `download`→`capture`, `links`→`capture_links`), forwards it over
+  the named pipe and replies `{"ok": true, "result"}` or `{"ok": false, "error":
+  "invalid"|"rejected"|"unavailable"}`. Unknown fields are rejected, and the IPC layer validates
+  everything again.
+- If the app is not running, the host starts it minimized and waits up to 15 s; `status` never
+  starts it. Host name `io.github.indrajit147.opendm`; `allowed_origins` is only this
+  extension's fixed ID.
+
+## D57 Extension identity and structure (M6, 2026-10-30)
+- **Choice:** the manifest carries a public `key`, so the unpacked extension always has ID
+  `pjkejmcidaikllfpgmfginpahcockofb` and the host can name it. No private key is kept; store
+  publishing (later) will use the store's own signing. MV3, plain JavaScript ES modules, no
+  build step and no npm dependencies; the logic lives in `extension/lib/` and is tested with
+  Node's built-in test runner.
+- Dev registration: `scripts/register_host_dev.cmd` writes the host manifest to
+  `build\native-host\` and HKCU keys for Chrome and Edge (no admin). The installer (M7) will do
+  the same for `opendm-host.exe`.
+
+## D58 Takeover rules (M6, 2026-10-30, approved)
+- **Choice:** on by default for the category file types and files of at least 1 MB (unknown
+  size counts as large). The browser download is paused, handed over, and cancelled+erased only
+  after the app accepts it; otherwise it resumes and a notification explains why. Alt+click
+  lets the browser keep the next download (3 s window). Only http/https downloads are taken.
+- Each captured download opens the app's start dialog (no silent start). Cookies for the
+  download's site are sent with takeovers and menu downloads; "Download all links" sends none.
+
+## D59 Media detection (M6, 2026-10-30, approved)
+- **Choice:** non-blocking `webRequest.onHeadersReceived` classifies responses by content type
+  and extension: HLS/DASH manifests, and video/audio files of at least 512 KB; segments
+  (`.ts`, `.m4s`, ...) are ignored. Up to 100 items per tab, newest first, kept in
+  `storage.session` and cleared on navigation. A stream or a blob: video is handed over as the
+  page URL with `media: true`, so yt-dlp (and its DRM check) handles it; a plain file URL goes
+  to the HTTP engine. See docs/PRIVACY.md.

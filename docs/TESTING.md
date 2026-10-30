@@ -211,3 +211,50 @@ In window 2, quit OpenDM from its tray menu and start it again (`.venv\Scripts\o
 8. Optional, real website: Add URL with a video page you are allowed to download (for example
    a Creative Commons video) and pick a quality.
 9. Clean up the test files from your download folder.
+
+## Extension tests and manual checklist: M6 (browser integration)
+
+Automated: `D:\Tools\node\node.exe --test extension\tests\` (pure logic and manifest checks, no
+npm packages; CI runs them with the runner's Node). The native host and the app's capture
+handling are covered by pytest (`tests/unit/test_native_host.py`, `tests/gui/test_native_host_e2e.py`,
+`tests/gui/test_capture.py`).
+
+Setup (CMD, from `D:\Projects\opendm`):
+
+1. Register the native host (once; writes `build\native-host\` and HKCU keys for Chrome and
+   Edge; undo with `scripts\unregister_host_dev.cmd`):
+   `scripts\register_host_dev.cmd`
+2. Window 1, test server with the media fixtures (needs `make_media_fixtures.py` from M5):
+   `.venv\Scripts\python.exe -m tests.server --static tests\fixtures\media`
+3. Window 2: `.venv\Scripts\opendm.exe`
+4. Chrome: `chrome://extensions` (Edge: `edge://extensions`) -> Developer mode on -> **Load
+   unpacked** -> `D:\Projects\opendm\extension`. The ID must be `pjkejmcidaikllfpgmfginpahcockofb`.
+   Pin the OpenDM toolbar button.
+
+Checks (pages are under `http://127.0.0.1:8765/pages/`):
+
+1. **Popup**: click the toolbar button: "Connected". Quit OpenDM from the tray: reopening the popup
+   says "App not running". Start OpenDM again.
+2. **Takeover** (`links.html`): click `archive.zip`. The browser download disappears and the
+   OpenDM start dialog opens with `archive.zip`, 20 MB. Start it; it completes.
+3. **Size and type rules**: `small.zip` (200 KB) and `notes.txt` stay in the browser.
+4. **Alt+click** `setup.exe`: the browser keeps it.
+5. **Cookie-protected file**: click `secret.zip` without the cookie: the start dialog shows HTTP
+   403. Click "Set the test cookie", then `secret.zip` again: the dialog shows the size and the
+   download completes.
+6. **Context menu**: right-click `a.zip` -> **Download with OpenDM**: the start dialog opens.
+7. **All links**: right-click the page -> **Download all links with OpenDM**: a list opens with
+   the files pre-checked (a.zip once, b.mp4, c.mp3, archive.zip ...), `video.html` unchecked,
+   no mailto link. Filter by Video; Download the checked ones.
+8. **Video button** (`video.html`): hover the video: a "Download" button appears top right.
+   Click it: the start dialog opens for `clip.mp4`. Right-click the video -> **Download with
+   OpenDM** does the same. Turn the button off in the extension options, reload: no button.
+9. **Media detection** (`stream.html`): the toolbar button shows a badge "1"; the popup lists
+   "Stream: index.m3u8" (no `.ts` segment). Click its Download: the OpenDM quality picker opens
+   for the page. "Download this page's video" on `video.html` does the same.
+10. **App not running**: quit OpenDM, click `archive.zip`: OpenDM starts (minimized) and the
+    start dialog appears within a few seconds. Then unregister (`scripts\unregister_host_dev.cmd`),
+    restart the browser, click `archive.zip`: the browser downloads it itself and a
+    notification says OpenDM is not available. Register again afterwards.
+11. Repeat 2, 5 and 9 in Edge.
+12. Clean up the test files from your download folder.
