@@ -1,6 +1,6 @@
 # Progress
 
-## Current milestone: M9 Hardening and public launch (1.0.0-rc.1, awaiting user review)
+## Current milestone: M9 Hardening and public launch (complete: 1.0.0)
 
 ### M9 done (2026-10-31)
 - Logs without secrets and Settings -> General -> Export diagnostics (D67).
@@ -15,7 +15,9 @@
 - Stores: `store/` listing, permission justifications, images; `scripts/package_extension.py`.
   Signing: options compared, SignPath Foundation recommended after 1.0. Installer privacy
   note.
-- Version 1.0.0-rc.1, CHANGELOG [1.0.0].
+- Version 1.0.0-rc.1, CHANGELOG [1.0.0]. rc.1 published and installed on the user's PC
+  through the in-app update (logs and diagnostics checked there).
+- The user approved the release: version 1.0.0, tag `v1.0.0` (2026-10-31).
 
 ### Results
 - `pytest` with real tools: 770 passed. Node: 13 passed. `ruff check`/`format`: clean.
@@ -27,10 +29,10 @@
   the draft is waiting to be published by the user.
 
 ### Waiting on the user
-- Release checklist (docs/TESTING.md, M9), then the go-ahead for `v1.0.0`.
+- Publish the `v1.0.0` draft on GitHub as the latest release (not a pre-release).
 - Optional, the user's decisions: Chrome Web Store account (one-time fee), Edge Add-ons
-  account (free), SignPath Foundation application after 1.0, GitHub two-factor
-  authentication and private vulnerability reporting (repository Settings -> Security).
+  account (free), SignPath Foundation application, GitHub two-factor authentication and
+  private vulnerability reporting (repository Settings -> Security).
 
 ### Known limitations
 - Unsigned builds (SmartScreen). YouTube videos that need a login need a JavaScript runtime
@@ -56,12 +58,11 @@
 - **M1:** errors, events, filename handling, probe, CLI. **M0:** tooling, test server, CI.
 
 ### Next
-- User runs the M9 release checklist (docs/TESTING.md); on approval set 1.0.0, push `v1.0.0`,
-  user publishes it as the latest release.
-- Then M10 items, each with its own approval (spec): YouTube logins via a JavaScript runtime
-  for yt-dlp, Firefox, Bangla, winget, torrents.
-- Notes kept from M8: programs started inside the Claude app see a private copy of the
-  registry, so registry results are checked from outside it (TESTING.md).
+- M10 items, each with its own approval (spec): YouTube logins via a JavaScript runtime for
+  yt-dlp, Firefox extension, Bangla translation, winget package, torrents, FTP/SFTP.
+- Store IDs into `EXTENSION_IDS` once the extension is published.
+- Programs started inside the Claude app see a private copy of the registry, so registry
+  results are checked from outside it (TESTING.md).
 
 ### Environment notes
 - No `gh` CLI; pushes use plain `git` via Git Credential Manager from the Terminal panel tab.

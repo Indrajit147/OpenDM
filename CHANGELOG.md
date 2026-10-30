@@ -3,7 +3,7 @@
 All notable changes to OpenDM. The release workflow copies a version's section into the
 GitHub release notes. Versions follow `X.Y.Z`, with `-rc.N` for test releases.
 
-## [1.0.0]
+## [1.0.0] - 2026-10-31
 
 First public release.
 
@@ -20,7 +20,7 @@ First public release.
 - Moving yt-dlp and FFmpeg to their new folder no longer freezes the window at the first
   start after updating from 0.7.
 
-## [0.8.0]
+## [0.8.0] - 2026-10-31
 
 ### Added
 - Releases are built on GitHub from version tags: installer, portable ZIP and `SHA256SUMS.txt`.
