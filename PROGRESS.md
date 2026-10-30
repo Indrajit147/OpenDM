@@ -28,8 +28,16 @@
   main window, details (8-connection segment map), start dialog. Fixed from it: busy bar on
   failed rows, wrapped status text, cut-off dates.
 
+### Manual checklist run (in progress, 2026-10-30)
+- Steps 1-2 passed on the user's PC (app starts, download completes, notification shown).
+- Fixed from it: Name column squeezed to "t...p" with a horizontal scrollbar at the default
+  window size (columns now fit the table on every resize; regression test); the wizard now
+  warns in orange when the chosen drive has < 30 GiB free; checklist explains copying links
+  (not opening them in a browser) and that test files are random bytes.
+- Open: Windows notifications say "Python" because the app runs as python.exe; the M7
+  installer gives OpenDM its own identity (Start-menu shortcut with an AppUserModelID).
+
 ### Known limitations
-- The user's manual checklist (docs/TESTING.md, M4) has not been run yet.
 - Tray, notifications and the clipboard monitor are only partly covered by automated tests
   (no tray in the offscreen platform).
 - No logging/diagnostics export yet (spec 6.11), no translations yet (strings use `tr()`).

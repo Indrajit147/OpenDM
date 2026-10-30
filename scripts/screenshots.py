@@ -53,7 +53,7 @@ urls = [
 ]
 app.window.add_urls(urls, ask=False)
 spin(4)
-app.window.resize(1100, 520)
+app.window.resize(1000, 600)
 app.window.grab().save(str(out / "main-light.png"))
 job = next(j for j in app.window.model.jobs() if j.name.startswith("music"))
 details = DetailsDialog(app.client, job)

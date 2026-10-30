@@ -128,10 +128,18 @@ start dialog with live downloads into `build\screens` without showing anything.
 
 Keep the test server running in one CMD window (M0 checklist, step 1). In a second window:
 
+Two things to know first:
+- **Copy** the test links (select the text, Ctrl+C) and paste them into OpenDM. Do not open
+  them in a browser: the browser would download the file itself.
+- Test-server files are random bytes with real-looking names. Windows cannot open the
+  "zip" or "pdf" files; that is expected. Delete them when you are done.
+
 1. Start the app: `cd /d D:\Projects\opendm` then `.venv\Scripts\opendm.exe`.
-   The first-run wizard appears. Choose a download folder on D: (for example `D:\Downloads`),
-   keep the tools folder, finish. The main window opens; the tray shows the OpenDM icon.
+   The first-run wizard appears. Choose a download folder on D: (for example `D:\Downloads`);
+   the wizard warns in orange if the drive is nearly full. Keep the tools folder, finish.
+   The main window opens; the tray shows the OpenDM icon.
    (App data lives in `%LOCALAPPDATA%\OpenDM`: a small database only.)
+   Already ran the wizard with C:? Change it in **Settings -> General -> Download folder**.
 2. Copy `http://127.0.0.1:8765/file/test-pack.zip?size=50M&rate=2M` and click **Add URL**: the
    link is already filled in. OK -> the start dialog shows `test-pack.zip`, 50.0 MiB, category
    Compressed, folder `D:\Downloads\Compressed`. Click **Start now**.
