@@ -19,15 +19,23 @@ from PySide6.QtWidgets import (
 from opendm.core.app_settings import AppSettings
 from opendm.core.units import format_bytes
 
+LOW_SPACE = 30 * 1024**3  # warn below 30 GiB free: downloads can be large
 
-def free_space_text(folder: Path) -> str:
+
+def free_space(folder: Path) -> int | None:
+    """Free bytes on the drive holding ``folder`` (or its nearest existing parent)."""
     probe = folder
     while not probe.exists() and probe.parent != probe:
         probe = probe.parent
     try:
-        return format_bytes(shutil.disk_usage(probe).free)
+        return shutil.disk_usage(probe).free
     except OSError:
-        return "?"
+        return None
+
+
+def free_space_text(folder: Path) -> str:
+    free = free_space(folder)
+    return "?" if free is None else format_bytes(free)
 
 
 class _FolderPage(QWizardPage):
@@ -38,6 +46,8 @@ class _FolderPage(QWizardPage):
         intro.setWordWrap(True)
         self.edit = QLineEdit(str(folder))
         self.space = QLabel()
+        self.space.setWordWrap(True)
+        self.low_space = False
         browse = QPushButton(self.tr("Browse..."))
         browse.clicked.connect(self._browse)
         row = QHBoxLayout()
@@ -57,8 +67,17 @@ class _FolderPage(QWizardPage):
 
     def _update_space(self) -> None:
         text = self.edit.text().strip()
-        if text:
-            self.space.setText(self.tr("Free space there: {0}").format(free_space_text(Path(text))))
+        if not text:
+            return
+        free = free_space(Path(text))
+        message = self.tr("Free space there: {0}").format(free_space_text(Path(text)))
+        self.low_space = free is not None and free < LOW_SPACE
+        if self.low_space:
+            message += self.tr(
+                " - this drive is nearly full. Choose a folder on a drive with more space."
+            )
+        self.space.setText(message)
+        self.space.setStyleSheet("color: #d35400; font-weight: bold" if self.low_space else "")
 
     def isComplete(self) -> bool:
         return bool(self.edit.text().strip())
