@@ -48,7 +48,8 @@ known-first-party = ["opendm", "tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-m 'not live'"
+# basetemp keeps test downloads inside the repo (off C:); pytest clears it each run.
+addopts = "-m 'not live' --basetemp=build/pytest-tmp"
 markers = ["live: hits the real internet; skipped by default"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
