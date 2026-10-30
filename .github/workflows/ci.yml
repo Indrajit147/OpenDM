@@ -32,7 +32,9 @@ jobs:
           ruff format --check .
 
       - name: Extension tests (Node preinstalled on the runner)
-        run: node --test extension/tests/
+        run: |
+          node --version
+          node --test extension/tests/logic.test.mjs extension/tests/manifest.test.mjs
 
       - name: Test
         run: python -m pytest -q --cov --cov-report=term-missing --junitxml=pytest-report.xml
