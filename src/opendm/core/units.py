@@ -1,6 +1,21 @@
 """Human-readable sizes and durations."""
 
 _UNITS = ("KiB", "MiB", "GiB", "TiB")
+_FACTORS = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3}
+
+
+def parse_size(text: str) -> int:
+    """``"500K"``, ``"1.5M"``, ``"2G"`` or plain bytes -> bytes (binary units)."""
+    value = text.strip().upper().removesuffix("B").removesuffix("I")
+    unit = value[-1:] if value[-1:] in _FACTORS else ""
+    number = value[: len(value) - len(unit)].strip()
+    try:
+        result = float(number) * _FACTORS[unit]
+    except ValueError as exc:
+        raise ValueError(f"not a size: {text!r}") from exc
+    if result < 0:
+        raise ValueError(f"size must not be negative: {text!r}")
+    return int(result)
 
 
 def format_bytes(n: float) -> str:

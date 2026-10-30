@@ -8,7 +8,7 @@ from opendm.core.errors import DownloadError, ErrorKind, error_from_os, kind_for
 from opendm.core.models import DownloadRequest
 from opendm.core.progress import SpeedMeter, Throttle, eta_seconds
 from opendm.core.redact import redact_headers, redact_url
-from opendm.core.units import format_bytes, format_duration
+from opendm.core.units import format_bytes, format_duration, parse_size
 
 
 class FakeClock:
@@ -177,3 +177,17 @@ def test_redact_url_strips_query_fragment_and_userinfo() -> None:
 def test_redact_headers() -> None:
     redacted = redact_headers({"Cookie": "a=b", "authorization": "Bearer x", "Referer": "r"})
     assert redacted == {"Cookie": "<redacted>", "authorization": "<redacted>", "Referer": "r"}
+
+
+@pytest.mark.parametrize(
+    ("text", "n"),
+    [("100", 100), ("500K", 512_000), ("1.5M", 1_572_864), ("2g", 2 * 1024**3), ("64KiB", 65_536)],
+)
+def test_parse_size(text: str, n: int) -> None:
+    assert parse_size(text) == n
+
+
+@pytest.mark.parametrize("bad", ["", "fast", "-5K", "1.2.3M"])
+def test_parse_size_rejects(bad: str) -> None:
+    with pytest.raises(ValueError):
+        parse_size(bad)
