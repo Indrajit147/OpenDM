@@ -237,19 +237,24 @@ def test_redirect_status_code(server: FaultServer) -> None:
 # --- throttling and slow start -------------------------------------------------------
 
 
+# perf_counter, not monotonic: on Windows monotonic ticks every ~15.6 ms, so a 0.3 s
+# server delay can measure as 0.297 s. TIMER_SLACK absorbs the remaining jitter.
+TIMER_SLACK = 0.03
+
+
 def test_throttle(server: FaultServer) -> None:
-    t0 = time.monotonic()
+    t0 = time.perf_counter()
     _, body = request(server, "/file/a.bin?size=100000&rate=200000")
-    elapsed = time.monotonic() - t0
+    elapsed = time.perf_counter() - t0
     assert len(body) == 100_000
     assert elapsed >= 0.4  # 100 kB at 200 kB/s = 0.5 s
 
 
 def test_slow_start(server: FaultServer) -> None:
-    t0 = time.monotonic()
+    t0 = time.perf_counter()
     resp, _ = request(server, "/file/a.bin?size=10&slow_start=0.3")
     assert resp.status == 200
-    assert time.monotonic() - t0 >= 0.3
+    assert time.perf_counter() - t0 >= 0.3 - TIMER_SLACK
 
 
 # --- connection drop at byte N ----------------------------------------------------------
