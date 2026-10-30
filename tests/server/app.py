@@ -573,9 +573,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("-v", "--verbose", action="store_true", help="log every request")
+    parser.add_argument("--static", type=Path, help="folder to serve under /static/")
     args = parser.parse_args(argv)
     server = FaultServer(args.host, args.port, verbose=args.verbose)
+    if args.static:
+        server.static_root = args.static.resolve()
     print(f"Serving on {server.base_url}  (Ctrl+C to stop)")
+    if args.static:
+        print(f"/static/ serves {server.static_root}")
     print(__doc__)
     try:
         server._httpd.serve_forever(poll_interval=0.2)
