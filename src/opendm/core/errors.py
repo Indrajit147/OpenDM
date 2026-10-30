@@ -22,6 +22,9 @@ class ErrorKind(StrEnum):
     LINK_MISMATCH = "link_mismatch"  # a refreshed link points to a different file
     CHECKSUM_MISMATCH = "checksum_mismatch"
     IN_USE = "in_use"  # another process is downloading the same file
+    PROTECTED = "protected"  # DRM: "protected content is not supported" (spec 2)
+    MEDIA = "media"  # yt-dlp/FFmpeg could not handle the page or stream
+    TOOL_MISSING = "tool_missing"  # yt-dlp or FFmpeg is not installed
     UNKNOWN = "unknown"
 
 
