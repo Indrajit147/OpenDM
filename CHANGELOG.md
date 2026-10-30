@@ -3,6 +3,23 @@
 All notable changes to OpenDM. The release workflow copies a version's section into the
 GitHub release notes. Versions follow `X.Y.Z`, with `-rc.N` for test releases.
 
+## [1.0.0]
+
+First public release.
+
+### Added
+- Log files (5 x 1 MB, link tokens, cookies and passwords removed) and Settings -> General ->
+  Export diagnostics: a ZIP of logs, settings and versions to attach to a bug report.
+- When a website's certificate cannot be verified, the download dialog offers to skip the
+  check for that one download, with a warning. Checks stay on otherwise.
+- The installer shows what OpenDM sends where before you choose a folder.
+- Install guide, user guide, FAQ, security policy, contributing guide and code of conduct;
+  README with screenshots; issue and pull request templates.
+
+### Fixed
+- Moving yt-dlp and FFmpeg to their new folder no longer freezes the window at the first
+  start after updating from 0.7.
+
 ## [0.8.0]
 
 ### Added

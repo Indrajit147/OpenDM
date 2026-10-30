@@ -1,3 +1,3 @@
 """OpenDM: a free, open-source download manager for Windows."""
 
-__version__ = "0.8.0-rc.2"
+__version__ = "1.0.0-rc.1"

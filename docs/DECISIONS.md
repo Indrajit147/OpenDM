@@ -453,3 +453,26 @@ specification (section 4); later entries were made during development.
   the tools are back. A yt-dlp deleted between the check and the start is reported as
   "yt-dlp is not installed" (was "file not found"); if the tools look installed but still do
   not start, the job fails once instead of looping.
+
+## D67 Logs and diagnostics (M9, 2026-10-31, approved)
+- **Choice:** Python logging for OpenDM's own loggers only ("opendm.*"), a rotating file
+  `<data>\logs\opendm.log` (5 x 1 MB), every line passed through `redact_text` (link query
+  strings, credentials in links, cookie/authorization values). Settings -> General ->
+  Export diagnostics writes a ZIP (logs once more redacted, settings with secrets removed,
+  versions of OpenDM, Windows, Python and the tools) on the engine thread. Nothing is sent.
+- **Rejected:** crash reporting services (telemetry, spec 7); logging third-party libraries
+  (noise, and they may log headers).
+
+## D68 Hardening for 1.0 (M9, 2026-10-31, approved)
+- **TLS:** checks stay on; after a certificate error the start dialog offers an unticked,
+  per-download "Download without checking the certificate" with a warning (spec 7).
+- **Security rules as tests:** `tests/unit/test_security_rules.py` scans the source (no
+  `shell=True`, no command strings, processes start only in four reviewed places, the update
+  installer only after a verified download); the pipe's Windows permissions are read in a
+  test. Review: docs/SECURITY.md.
+- **Performance:** `scripts/perf_check.py` runs the built app with 10 downloads: ~122 MB
+  working set peak (spec: under ~250 MB), window-thread ping max 2 ms. Moving the tools runs
+  on a worker thread. Coverage: engine + core 92% (target 85%).
+- **Stores and signing:** listing material in `store/`, store ZIP without the development
+  key (`scripts/package_extension.py`); signing options in docs/CODE_SIGNING.md, SignPath
+  Foundation recommended after 1.0. The installer shows a privacy note (SignPath condition).

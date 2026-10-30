@@ -344,3 +344,32 @@ Manual checklist:
    now" still shows it. With the update check off, OpenDM makes no request to GitHub.
 9. Portable: unzip the rc.1 portable ZIP into a new folder, turn on the update check there:
    the dialog offers "Open release page" instead of Install.
+
+## Release checklist: M9 (1.0)
+
+Automated: everything above, plus `tests/unit/test_logs.py`, `test_security_rules.py`,
+`test_store_package.py`, `tests/gui/test_diagnostics_gui.py`, `test_tls_override.py`, the
+pipe permission test in `test_ipc.py`, and after a build:
+
+```
+.venv\Scripts\python.exe scripts\smoke_dist.py
+.venv\Scripts\python.exe scripts\perf_check.py
+```
+
+Before tagging v1.0.0 (start everything from File Explorer or the Start menu):
+
+1. The `v1.0.0-rc.1` Release run is green; publish the draft as a pre-release. With
+   "Include test versions" on, OpenDM 0.8.0-rc.2 offers 1.0.0-rc.1: Install it.
+2. The setup shows the privacy note before the folder page (when run by hand).
+3. Settings -> General -> **Export diagnostics**: the ZIP has `about.json`,
+   `settings.json` and `logs/opendm.log`; open the log and check it has no link tokens or
+   cookies.
+4. Download something, quit OpenDM: `%LOCALAPPDATA%\OpenDM\logs\opendm.log` shows the start
+   and "done" lines.
+5. Open a link to a site with a bad certificate (for example https://self-signed.badssl.com/):
+   the dialog explains and offers "Download without checking the certificate".
+6. Open M8 steps: 4 (missing tools wait and ask once), 5 (Mix link opens one video),
+   8 (Skip this version), 9 (portable offers the release page).
+7. README, INSTALL, USER_GUIDE and FAQ read correctly on GitHub; links work.
+8. When happy: tell Claude to set version 1.0.0 and push `v1.0.0`; publish that draft as the
+   latest release (not a pre-release).

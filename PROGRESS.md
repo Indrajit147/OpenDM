@@ -1,48 +1,43 @@
 # Progress
 
-## Current milestone: M8 Release pipeline + updater (complete, awaiting user review)
+## Current milestone: M9 Hardening and public launch (1.0.0-rc.1, awaiting user review)
 
-### M8 done (2026-10-31)
-- Version `0.8.0-rc.1` (pre-release versions: `opendm.core.version`), `CHANGELOG.md`,
-  `scripts/release_notes.py`. Windows file version `0.8.0.0` passed to PyInstaller and Inno.
-- `.github/workflows/release.yml`: on `v*` tags builds, tests (pytest, smoke, install test),
-  writes `SHA256SUMS.txt` and notes, and creates a **draft** release (pre-release for `-rc`).
-- Updater (`opendm.updater.github_releases`): opt-in startup check and "Check now", release
-  notes, Install (download to `<install>\updates`, SHA-256 check, runs after OpenDM exits),
-  Skip this version, Later; portable opens the release page. Settings -> Updates, wizard page.
-- Tools folder (user request): `<install>\tools` / portable `data\tools`; never the download
-  folder (refused in Settings and the tools prompt); tools in Downloads or in 0.7's
-  `%LOCALAPPDATA%\OpenDM\tools` are moved on start; uninstall removes `tools` and `updates`.
-- Missing tools: media jobs wait and the GUI asks once; they continue when the tools are back.
-- Fixes: YouTube analysis with multi-MB output (64 KiB line limit), logged-in YouTube
-  cookies hiding the streams (retry without cookies), "file not found" -> "yt-dlp is not
-  installed", the status bar total after a removal, the wizard's outdated browser text; a
-  video inside a playlist/Mix is analyzed alone with "Show the whole playlist...".
-- Decisions D64-D66.
+### M9 done (2026-10-31)
+- Logs without secrets and Settings -> General -> Export diagnostics (D67).
+- Per-download certificate override after a certificate error, with a warning (D68).
+- Moving the tools runs on a worker thread (no window freeze).
+- Security review against spec 7: docs/SECURITY.md; rules as source-scanning tests; the IPC
+  pipe's Windows permissions grant only the current user (tested).
+- `scripts/perf_check.py`: 10 downloads, ~122 MB peak working set, window ping max 2 ms.
+  Coverage engine + core 92%.
+- Docs: README with screenshots, INSTALL, USER_GUIDE, FAQ, SECURITY, CODE_SIGNING,
+  CONTRIBUTING, CODE_OF_CONDUCT, issue/PR templates; PRIVACY updated.
+- Stores: `store/` listing, permission justifications, images; `scripts/package_extension.py`.
+  Signing: options compared, SignPath Foundation recommended after 1.0. Installer privacy
+  note.
+- Version 1.0.0-rc.1, CHANGELOG [1.0.0].
 
 ### Results
-- `pytest` with real tools: 745 passed, 2 failed. The 2 are HTTP timing tests
-  (`test_speed_limit_within_10_percent`, `test_external_cancellation_checkpoints`) that fail the
-  same way on the pre-M8 commit on this PC tonight (slow local connection start under load);
-  GitHub CI passed them (run 41097571459). 747 tests (671 before M8). Node: 13 passed.
-  `ruff check`/`format`: clean.
-- `scripts/smoke_dist.py` (0.8.0-rc.1 portable ZIP): 14/14. Version info shows 0.8.0-rc.1.
-- `scripts/installer_test.py` was not run locally (OpenDM is installed on this PC; the test needs
-  a machine without it). It passed in the release workflow, now also checking that upgrades
-  keep `tools` and the uninstaller removes `tools` and `updates`.
-- Release workflow for tag `v0.8.0-rc.1` (run 41098105660, 5 min): every step green, draft
-  release created. Sizes: setup 26 MB, portable ZIP 45 MB.
+- `pytest` with real tools: 770 passed. Node: 13 passed. `ruff check`/`format`: clean.
+- 1.0.0-rc.1 build: `smoke_dist.py` 14/14; `perf_check.py` idle 78 MB, 10 downloads peak
+  123 MB working set / 85 MB private, window-thread ping max 2 ms, all 10 still running.
+- Sizes: setup 27 MB, portable ZIP 45 MB. Store ZIP 32 KB.
+
+### Waiting on the user
+- Release checklist (docs/TESTING.md, M9), then the go-ahead for `v1.0.0`.
+- Optional, the user's decisions: Chrome Web Store account (one-time fee), Edge Add-ons
+  account (free), SignPath Foundation application after 1.0, GitHub two-factor
+  authentication and private vulnerability reporting (repository Settings -> Security).
 
 ### Known limitations
-- The draft release must be published by the user (drafts are private).
-- Unsigned builds: SmartScreen warns (signing options are M9).
-- The updater was tested against a fake GitHub on the test server; the real path (rc.1 ->
-  rc.2) is manual checklist step 7.
-- YouTube videos that need a login still fail without a JavaScript runtime for yt-dlp
-  (cookies are dropped on retry); planned for later.
-- The user's manual checklists for M4 steps 9-14, M5, M6, M7 and M8 have not been reported.
+- Unsigned builds (SmartScreen). YouTube videos that need a login need a JavaScript runtime
+  for yt-dlp (proposed for M10). Store builds need their IDs added to `EXTENSION_IDS`.
+- Four media modules are at 82-84% coverage (engine and core overall 92%).
 
 ### Earlier milestones
+- **M8 (2026-10-31):** release workflow, opt-in updater (with releases-feed fallback), own
+  tools folder, missing-tools wait, playlist links; rc.1 -> rc.2 update tested on the user's
+  PC. D64-D66.
 - **M7 (2026-10-30):** PyInstaller build, per-user Inno Setup installer, portable ZIP,
   Settings -> Browser, packaging tests. D60-D63. Fixes after review: long yt-dlp lines,
   cookie retry.
@@ -58,31 +53,12 @@
 - **M1:** errors, events, filename handling, probe, CLI. **M0:** tooling, test server, CI.
 
 ### Next
-- `v0.8.0-rc.1` is published as a pre-release (the real update check finds it from 0.7.0 with
-  "Include test versions" on, and nothing newer from rc.1). `v0.8.0-rc.2` was built by the
-  Release workflow (green) as a draft.
-- On the user's PC (checked 2026-10-31): rc.1 installed in `D:\Softtt\OpenDM`; yt-dlp and
-  FFmpeg moved from Downloads to `D:\Softtt\OpenDM\tools` (setting updated, nothing left in
-  Downloads); "Check for a new OpenDM" is on. Not done yet: "Include test versions" is off and
-  rc.2 is still a draft, so step 7 (update to rc.2) has not run.
-- Fixed after the first release: GitHub showed the notes with a line break at every wrapped
-  CHANGELOG line; `release_notes.py` now joins them (from the next release on).
-- Found in the manual test: "Check now" failed with HTTP 403 because GitHub's 60 requests
-  an hour for anonymous callers were used up (Claude's CI polling from the same connection).
-  The updater now falls back to the releases feed; the real feed finds rc.2 from rc.1. This
-  is in the next build (rc.3), not in the installed rc.1.
-- Step 7 (in-app update rc.1 -> rc.2) worked: download, SHA-256 check, setup after exit,
-  restart, tools kept.
-- Registry confusion, resolved: Claude's commands could not see OpenDM's uninstall entry or
-  browser keys after any install, although the setup log shows every registry write
-  succeeding. Programs started inside the Claude app (Claude's commands, its Terminal panel)
-  each see a private copy of the registry. After the user ran the setup from File Explorer,
-  OpenDM 0.8.0-rc.2 is listed in Windows Settings -> Apps and Settings -> Browser shows
-  Chrome and Edge set up for `D:\Softtt\OpenDM`. Not an OpenDM bug; TESTING.md says to check
-  registry results from outside the Claude app.
-- Still unreported from the M8 checklist: steps 4 (missing tools), 5 (Mix link), 8 (skip
-  this version) and 9 (portable).
-- On approval: plan **M9 Hardening and public launch**.
+- User runs the M9 release checklist (docs/TESTING.md); on approval set 1.0.0, push `v1.0.0`,
+  user publishes it as the latest release.
+- Then M10 items, each with its own approval (spec): YouTube logins via a JavaScript runtime
+  for yt-dlp, Firefox, Bangla, winget, torrents.
+- Notes kept from M8: programs started inside the Claude app see a private copy of the
+  registry, so registry results are checked from outside it (TESTING.md).
 
 ### Environment notes
 - No `gh` CLI; pushes use plain `git` via Git Credential Manager from the Terminal panel tab.
