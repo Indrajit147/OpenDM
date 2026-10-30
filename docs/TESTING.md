@@ -166,3 +166,48 @@ Two things to know first:
     app runs: no second window; the running app shows a start dialog for `second.zip`.
 13. Drag a link from a browser's address bar onto the window: a start dialog opens.
 14. Tray icon -> **Quit**. Start the app again: finished downloads are still listed.
+
+## Media tests and manual checklist: M5 (video and audio)
+
+Automated: `tests/unit/test_media_logic.py`, `tests/integration/test_media_fake.py` (fake yt-dlp,
+runs everywhere), `test_tools.py` (fake GitHub release), `tests/gui/test_media_gui.py`, and the
+real-tool acceptance tests `tests/integration/test_media_real.py`:
+
+```
+set OPENDM_TEST_TOOLS=D:\Tools
+.venv\Scripts\python.exe -m pytest -q tests\integration\test_media_real.py
+```
+
+They generate the fixtures on first use (or run
+`.venv\Scripts\python.exe scripts\make_media_fixtures.py D:\Tools\ffmpeg\bin\ffmpeg.exe`).
+
+Manual checklist (needs the fixtures above). In CMD window 1, start the test server with the
+media files:
+
+```
+cd /d D:\Projects\opendm
+.venv\Scripts\python.exe -m tests.server --static tests\fixtures\media
+```
+
+In window 2, quit OpenDM from its tray menu and start it again (`.venv\Scripts\opendm.exe`).
+
+1. **Settings -> Tools**: set the Tools folder to `D:\Projects\opendm\tools-bin`, OK. Open
+   Settings -> Tools again: both tools say "Not installed (expected at ...tools-bin...)".
+2. Copy `http://127.0.0.1:8765/static/page.html` -> **Add URL** -> OK. OpenDM sees a web page
+   and asks to download the helper tools: yt-dlp (~22.5 MiB, github.com) and FFmpeg (~109.5 MiB,
+   gyan.dev), folder `tools-bin`. Click **Download**; a progress window shows both downloads.
+3. The quality picker opens: title "OpenDM test video", subtitle `en`. Tick `en`, keep MP4,
+   **Start now**. The row completes; the folder (Video category) has the `.mp4` and an `.srt`.
+   Open the video: 5 s colour bars with a tone.
+4. **Add URL** `http://127.0.0.1:8765/static/dash/manifest.mpd` -> quality **Audio only (MP3)** ->
+   Start: an `.mp3` appears in the Audio folder (FFmpeg merged/converted it).
+5. **Add URL** `http://127.0.0.1:8765/static/dash_drm/manifest.mpd`: a message says protected
+   content is not supported; nothing is downloaded.
+6. **Settings -> Tools**: both tools show versions; **Check for yt-dlp update now** says it is up
+   to date (or names a newer version).
+7. CLI through the app:
+   `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/static/hls/index.m3u8" --media --quality 720p`
+   -> "Added ..."; the row completes in the window.
+8. Optional, real website: Add URL with a video page you are allowed to download (for example
+   a Creative Commons video) and pick a quality.
+9. Clean up the test files from your download folder.

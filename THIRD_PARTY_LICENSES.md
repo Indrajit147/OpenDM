@@ -26,10 +26,13 @@ standard icons (part of Qt, LGPL); the app icon is original artwork drawn in cod
 
 ## Downloaded at runtime with user consent (not bundled)
 
-| Component | License | Use |
-|-----------|---------|-----|
-| yt-dlp | Unlicense | media extraction (M5) |
-| FFmpeg | LGPL-2.1+ or GPL-2.0+/3.0+, depending on build | merging/remuxing (M5) |
+| Component | Source | License | Use |
+|-----------|--------|---------|-----|
+| yt-dlp (`yt-dlp.exe`) | github.com/yt-dlp/yt-dlp releases | Unlicense (the Windows build bundles third-party components listed in its own release notes) | finds and downloads media |
+| FFmpeg (`ffmpeg.exe`, `ffprobe.exe`) | gyan.dev "release essentials" | GPL-3.0 (this build includes GPL components such as x264); `LICENSE.txt` is kept next to the binaries | merging, remuxing, audio extraction |
+
+OpenDM does not ship these tools; the user downloads them through the tool manager after
+consenting, and they run as separate programs.
 
 ## Development only (not shipped)
 

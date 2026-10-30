@@ -2,7 +2,7 @@
 
 A free, open-source, no-subscription download manager for Windows.
 
-> **Status: early development (milestone M4, desktop app).** It works from source; there is
+> **Status: early development (milestone M5, video and audio).** It works from source; there is
 > no installer yet. See [PROGRESS.md](PROGRESS.md) and the
 > [project specification](docs/PROJECT_SPEC.md).
 
@@ -13,12 +13,15 @@ Working now:
 - Fast multi-connection downloads (up to 32 connections) with pause, resume and crash recovery
 - Queues with schedules, categories with their own folders, speed limits, searchable history
 - Desktop app with light/dark theme, tray icon, notifications, drag and drop of links
+- Video and audio from many websites via [yt-dlp](https://github.com/yt-dlp/yt-dlp), with
+  FFmpeg merging: quality picker, audio-only MP3/M4A, subtitles, playlists. The tools are
+  downloaded only with your consent and verified against their published checksums.
+  DRM-protected content is not supported.
 - `opendm-cli` command line, talking to the running app or standalone
 - No telemetry, no ads, no subscription
 
 Planned:
 
-- Video and audio from many websites via [yt-dlp](https://github.com/yt-dlp/yt-dlp), with FFmpeg merging
 - Chrome and Edge extension: download takeover, context menu, media detection
 - Per-user installer (no admin rights) and a portable build
 
