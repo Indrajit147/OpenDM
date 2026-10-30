@@ -68,6 +68,8 @@ class SettingsDialog(QDialog):
         tools_check: Callable[[Path, Path], str | None] | None = None,
         version: str = "",
         on_check_now: Callable[[], None] | None = None,
+        on_export: Callable[[Path, Callable[[Path], None], Callable[[BaseException], None]], None]
+        | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Settings"))
@@ -91,6 +93,15 @@ class SettingsDialog(QDialog):
         self.notifications.setChecked(settings.notifications)
         for box in (self.close_to_tray, self.start_minimized, self.clipboard, self.notifications):
             form.addRow(box)
+        self._on_export = on_export
+        self.export_button = QPushButton(self.tr("Export diagnostics..."))
+        self.export_button.setToolTip(self.tr(
+            "Saves a ZIP with OpenDM's logs, settings and versions to attach to a bug report. "
+            "Links, cookies and passwords are removed. Nothing is sent anywhere."
+        ))  # fmt: skip
+        self.export_button.setEnabled(on_export is not None)
+        self.export_button.clicked.connect(self._export)
+        form.addRow(self.export_button)
         tabs.addTab(general, self.tr("General"))
 
         connections = QWidget()
@@ -199,6 +210,30 @@ class SettingsDialog(QDialog):
         outer = QVBoxLayout(self)
         outer.addWidget(tabs)
         outer.addWidget(buttons)
+
+    def _export(self) -> None:
+        if self._on_export is None:
+            return
+        default = Path(self.download_dir.text().strip() or ".") / "opendm-diagnostics.zip"
+        name, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Export diagnostics"), str(default), self.tr("ZIP files (*.zip)")
+        )
+        if not name:
+            return
+        self.export_button.setEnabled(False)
+
+        def done(path: Path) -> None:
+            self.export_button.setEnabled(True)
+            QMessageBox.information(
+                self, self.tr("Export diagnostics"),
+                self.tr("Saved {0}. Attach it to your bug report.").format(path),
+            )  # fmt: skip
+
+        def failed(error: BaseException) -> None:
+            self.export_button.setEnabled(True)
+            QMessageBox.warning(self, self.tr("Export diagnostics"), str(error))
+
+        self._on_export(Path(name), done, failed)
 
     def accept(self) -> None:
         if self._tools_check is not None:

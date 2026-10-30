@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import dataclasses
 import datetime
+import logging
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -20,6 +21,7 @@ from opendm.core.branding import APP_MUTEX, APP_NAME, APP_USER_MODEL_ID
 from opendm.core.bridge import EngineThread
 from opendm.core.errors import ErrorKind
 from opendm.core.events import Finished, PowerRequested, ToolProgress, ToolsMissing
+from opendm.core.logs import export_diagnostics, setup_logging
 from opendm.core.models import AfterAction, DownloadRequest, Job
 from opendm.core.paths import (
     app_data_dir,
@@ -66,6 +68,8 @@ from opendm.tools.location import (
 )
 from opendm.tools.manager import ToolInfo
 from opendm.updater.github_releases import AppUpdate, Updater, clean_old_installers
+
+log = logging.getLogger(__name__)
 
 
 def _relay_progress(dialog: ToolProgressDialog) -> Callable[[ToolProgress], None]:
@@ -206,6 +210,27 @@ class Application(QObject):
 
     # --- settings -----------------------------------------------------------------------------
 
+    def export_diagnostics(
+        self,
+        target: Path,
+        on_done: Callable[[Path], None],
+        on_error: Callable[[BaseException], None],
+    ) -> None:
+        """ZIP of logs, settings and versions for a bug report (secrets removed).
+
+        Runs on the engine thread (tool versions come from running the tools)."""
+        log_dir, settings = self.data_dir / "logs", self.settings.to_dict()
+        portable = self.portable
+
+        async def export(m: DownloadManager) -> Path:
+            tools: dict[str, str | None] = {}
+            with contextlib.suppress(Exception):
+                tools = {t.name: t.version for t in await m.tool_status()}
+            about = {"version": __version__, "portable": portable, "tools": tools}
+            return export_diagnostics(target, log_dir=log_dir, settings=settings, about=about)
+
+        self.client.call(export, on_done=on_done, on_error=on_error)
+
     def tools_problem(self, folder: Path, download_dir: Path | None = None) -> str | None:
         return tools_dir_problem(
             folder, download_dir or self.settings.download_dir, self.downloads_folder
@@ -219,6 +244,7 @@ class Application(QObject):
         if self.tools_problem(old) is None and not old_default:
             return
         moved = relocate_tools(old, new)
+        log.info("tools folder %s -> %s (moved: %s)", old, new, ", ".join(moved) or "nothing")
         changes: dict[str, Any] = {"tools_dir": new}
         for field, name in (("ytdlp_path", "yt-dlp"), ("ffmpeg_path", "ffmpeg")):
             override = getattr(self.settings, field)
@@ -284,6 +310,7 @@ class Application(QObject):
             tools_check=self.tools_problem,
             version=__version__,
             on_check_now=lambda: self.check_app_update(manual=True),
+            on_export=self.export_diagnostics,
         )
         dialog.accepted.connect(lambda: self._settings_accepted(dialog))
         dialog.setModal(True)
@@ -463,6 +490,7 @@ class Application(QObject):
         updater = self.updater
 
         def done(update: AppUpdate | None) -> None:
+            log.info("update check: %s", update.version if update else "up to date")
             if update is None:
                 if manual:
                     QMessageBox.information(
@@ -475,6 +503,7 @@ class Application(QObject):
             self.show_update(update)
 
         def failed(error: BaseException) -> None:
+            log.warning("update check failed: %s", error)
             if manual:  # a startup check fails quietly (offline, GitHub busy)
                 message = getattr(error, "message", None) or str(error)
                 QMessageBox.warning(
@@ -508,6 +537,7 @@ class Application(QObject):
         dialog.set_busy(self.tr("Downloading the installer..."))
 
         def downloaded(path: Path) -> None:
+            log.info("update %s downloaded and verified: %s", update.version, path)
             # The installer replaces our files, so it runs after OpenDM has exited.
             self.run_after_quit = path
             dialog.accept()
@@ -737,6 +767,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     exe_dir = default_exe_dir()
     data_dir = app_data_dir(exe_dir)
     portable = exe_dir is not None and is_portable(exe_dir)
+    setup_logging(data_dir / "logs")
+    log.info("OpenDM %s starting (data %s, portable %s)", __version__, data_dir, portable)
     app = Application(
         qapp, data_dir, tools_dir=default_tools_dir(exe_dir, data_dir), portable=portable,
         # Installed: next to the programs (the drive the user chose), removed on uninstall.
@@ -750,7 +782,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         running.release()
         lock.release()
         if app.run_after_quit is not None:
+            log.info("starting the installer %s", app.run_after_quit)
             run_installer(app.run_after_quit)
+        log.info("OpenDM stopped")
 
 
 def run_installer(path: Path) -> None:

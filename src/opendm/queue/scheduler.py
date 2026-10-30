@@ -8,6 +8,7 @@ engine events are forwarded unchanged.
 import asyncio
 import contextlib
 import dataclasses
+import logging
 import tempfile
 import time
 from collections.abc import Callable
@@ -61,6 +62,7 @@ from opendm.storage.repositories import (
 )
 from opendm.tools.manager import ToolInfo, ToolManager
 
+log = logging.getLogger(__name__)
 StopReason = Literal["user", "queue", "shutdown", "remove"]
 WAITING_FOR_TOOLS = "waiting for {0} (Settings -> Tools)"
 _LIVE_STATES = frozenset({JobState.PROBING, JobState.DOWNLOADING, JobState.VERIFYING})
@@ -204,6 +206,7 @@ class DownloadManager:
         def report(done: int, total: int | None) -> None:
             self._emit(ToolProgress(name, done, total))
 
+        log.info("installing %s into %s", name, tools.folder)
         if name == "yt-dlp":
             info = await tools.install_ytdlp(report)
         elif name == "ffmpeg":
@@ -211,6 +214,7 @@ class DownloadManager:
         else:
             raise ValueError(f"unknown tool {name}")
         self.set_tools(tools.paths())
+        log.info("installed %s %s", name, info.version)
         return info
 
     async def use_existing_tool(self, name: str, path: Path) -> ToolInfo:
@@ -436,6 +440,7 @@ class DownloadManager:
         if job.message != message:
             self._set(job, JobState.QUEUED, message)
         if not self._tools_reported:
+            log.warning("media jobs wait: missing %s", ", ".join(missing))
             self._tools_reported = True
             self._emit(ToolsMissing(missing))
 
@@ -482,6 +487,12 @@ class DownloadManager:
         self._set(job, JobState.PROBING, "")
         if job.queue_id in self._active_queues:
             self._ran[job.queue_id] = True
+        log.info(
+            "start %s %s (%s)",
+            job.id,
+            job.request.url,
+            "media" if job.media_options is not None else f"{connections} connections",
+        )
         task = asyncio.create_task(self._drive(job.id, download))
         self._running[job.id] = _Run(download, task, host, connections, job.queue_id, manual)
 
@@ -524,9 +535,11 @@ class DownloadManager:
                 if run.manual:
                     self._manual.add(job_id)
             elif error is not None:
+                log.warning("failed %s: %s (%s)", job_id, error.message, error.kind)
                 job.state, job.message = JobState.FAILED, error.message
                 job.error_kind, job.error_message = str(error.kind), error.message
             elif result is not None:
+                log.info("done %s: %s bytes", job_id, job.size)
                 job.state, job.message = JobState.COMPLETED, ""
                 job.sha256 = getattr(result, "sha256", None)
                 job.downloaded = job.size or job.downloaded
