@@ -15,7 +15,10 @@
 - Docs: README, CLAUDE.md, DECISIONS.md (D1–D19), TESTING.md, THIRD_PARTY_LICENSES.md.
 
 ### Results
-- `pytest -q`: 65 passed. `ruff check .` and `ruff format --check .`: clean.
+- `pytest -q`: 65 passed (40 repeated runs, no flakes). `ruff check .` and `ruff format --check .`: clean.
+- GitHub Actions CI green on `windows-latest`.
+- Lesson: on Windows `time.monotonic()` ticks every ~15.6 ms; timing assertions in tests use
+  `time.perf_counter()` with a small slack. CI posts failing tests as public annotations.
 
 ### Next
 - User reviews M0 and the manual checklist in `docs/TESTING.md`.
