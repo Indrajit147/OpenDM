@@ -33,13 +33,16 @@ from opendm.core.models import (
     DownloadRequest,
     Job,
     JobState,
+    ProbeResult,
     utc_now,
 )
 from opendm.core.settings import EngineSettings
 from opendm.discovery.categories import category_folder, match_category
 from opendm.engine.http.download import HttpDownload
 from opendm.engine.http.naming import filename_from_url
+from opendm.engine.http.probe import probe as probe_url
 from opendm.engine.http.ratelimit import TokenBucket
+from opendm.engine.http.transport import HttpxTransport
 from opendm.queue.host_limits import HostLimiter, host_of
 from opendm.queue.power import NoPowerActions, PowerActions
 from opendm.queue.schedule import in_window
@@ -207,12 +210,46 @@ class DownloadManager:
         self._pump()
         return job
 
+    async def move_to_queue(self, job_id: str, queue_id: int) -> None:
+        job = self._require(job_id)
+        if job.queue_id == queue_id:
+            return
+        job.queue_id = queue_id
+        job.position = self.jobs.next_position(queue_id)
+        self.jobs.save(job)
+        self._emit(JobChanged(job_id))
+        self._pump()
+
     async def pause_all(self) -> None:
         for job_id in list(self._running):
             await self.pause(job_id)
 
     def set_global_speed_limit(self, rate: int | None) -> None:
         self.global_limiter.rate = rate
+
+    def apply_settings(self, settings: EngineSettings, global_limit: int | None) -> None:
+        """User-facing engine options; applies to downloads started from now on."""
+        self.settings = dataclasses.replace(
+            self.settings,
+            connections=settings.connections,
+            per_host_limit=settings.per_host_limit,
+            proxy=settings.proxy,
+            use_system_proxy=settings.use_system_proxy,
+        )
+        self.hosts.per_host = settings.per_host_limit
+        self.set_global_speed_limit(global_limit)
+
+    async def probe(self, request: DownloadRequest) -> ProbeResult:
+        """Probe a URL with the current proxy settings (for the start dialog)."""
+        transport = HttpxTransport(
+            verify=request.verify_tls,
+            proxy=self.settings.proxy,
+            use_system_proxy=self.settings.use_system_proxy,
+        )
+        try:
+            return await probe_url(transport, request.url, request.request_headers())
+        finally:
+            await transport.aclose()
 
     # --- queues -----------------------------------------------------------------------------------
 

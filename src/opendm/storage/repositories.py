@@ -391,6 +391,14 @@ class SettingsRepository:
         row = self.db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
         return json.loads(row[0]) if row else default
 
+    def all(self) -> dict[str, Any]:
+        return {k: json.loads(v) for k, v in self.db.execute("SELECT key, value FROM settings")}
+
+    def set_many(self, values: dict[str, Any]) -> None:
+        with self.db.transaction():
+            for key, value in values.items():
+                self.set(key, value)
+
     def set(self, key: str, value: Any) -> None:
         self.db.execute(
             "INSERT INTO settings (key, value) VALUES (?, ?) "
