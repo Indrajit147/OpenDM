@@ -12,7 +12,7 @@ windows_only = pytest.mark.skipif(sys.platform != "win32", reason="DPAPI is Wind
 
 @windows_only
 def test_protect_round_trip() -> None:
-    data = "odm_session=s3cr3t; Authorization: Bearer xyz".encode()
+    data = b"odm_session=s3cr3t; Authorization: Bearer xyz"
     blob = secrets.protect(data)
     assert blob != data
     assert b"s3cr3t" not in blob
