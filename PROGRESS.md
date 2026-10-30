@@ -58,8 +58,11 @@
 - **M1:** errors, events, filename handling, probe, CLI. **M0:** tooling, test server, CI.
 
 ### Next
-- User publishes the `v0.8.0-rc.1` draft as a pre-release and runs the M8 checklist
-  (docs/TESTING.md); at step 7 Claude bumps to `0.8.0-rc.2` and pushes that tag.
+- `v0.8.0-rc.1` is published as a pre-release (the real update check finds it from 0.7.0 with
+  "Include test versions" on, and nothing newer from rc.1). `v0.8.0-rc.2` was built by the
+  Release workflow (green) as a draft.
+- User installs rc.1, runs the M8 checklist (docs/TESTING.md) and at step 7 publishes the rc.2
+  draft to see the update dialog and Install.
 - On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes
