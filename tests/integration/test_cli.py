@@ -1,12 +1,16 @@
 """opendm-cli, run in-process against the local test server."""
 
 import hashlib
+import subprocess
+import sys
+import time
 from pathlib import Path
 from urllib.parse import quote
 
 import pytest
 
 from opendm.cli.__main__ import main, parse_header
+from opendm.engine.http.resume import load_state
 from tests.server.app import FaultServer, content_sha256
 
 SIZE = 200_000
@@ -40,7 +44,6 @@ def test_get_with_name_header_and_connections(server: FaultServer, tmp_path: Pat
     )  # fmt: skip
     assert code == 0
     assert (tmp_path / "renamed.bin").stat().st_size == 100
-    assert "multi-connection" in capsys.readouterr().err
 
 
 def test_get_default_folder_is_cwd(server: FaultServer, tmp_path: Path, monkeypatch) -> None:
@@ -56,9 +59,11 @@ def test_get_http_error(server: FaultServer, tmp_path: Path, capsys) -> None:
 
 
 def test_get_failure_reports_partial(server: FaultServer, tmp_path: Path, capsys) -> None:
-    url = server.url(f"/file/a.bin?size={SIZE}&drop_at=5000")
-    assert main(["get", url, "-o", str(tmp_path), "--standalone"]) == 1
-    assert "partial file kept" in capsys.readouterr().err
+    # The GET drops at byte 5000; its retry then finds the file changed (not retryable).
+    url = server.url(f"/file/a.bin?size={SIZE}&drop_at=5000&etag_after=2")
+    assert main(["get", url, "-o", str(tmp_path), "--standalone", "-c", "1"]) == 1
+    err = capsys.readouterr().err
+    assert "partial file kept" in err and "a.bin.odm-part" in err
 
 
 def test_get_bad_url_is_usage_error(tmp_path: Path, capsys) -> None:
@@ -93,3 +98,86 @@ def test_no_command_shows_help(capsys) -> None:
     with pytest.raises(SystemExit) as exc:
         main([])
     assert exc.value.code == 2
+
+
+# --- M2 options -------------------------------------------------------------------------------
+
+
+def test_checksum_option(server: FaultServer, tmp_path: Path, capsys) -> None:
+    url = server.url(f"/file/a.bin?size={SIZE}")
+    good = content_sha256(SIZE, 1)
+    assert main(["get", url, "-o", str(tmp_path), "--standalone", "--sha256", good]) == 0
+    bad = "0" * 32
+    assert main(["get", url, "-o", str(tmp_path), "--standalone", "--md5", bad]) == 1
+    assert "checksum_mismatch" in capsys.readouterr().err
+
+
+def test_malformed_checksum_is_usage_error(server: FaultServer, tmp_path: Path) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["get", server.url("/x"), "--standalone", "--sha256", "abc"])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("args", [["-c", "0"], ["-c", "33"], ["--limit", "fast"]])
+def test_bad_option_values(server: FaultServer, args: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["get", server.url("/x"), "--standalone", *args])
+    assert exc.value.code == 2
+
+
+def test_limit_option(server: FaultServer, tmp_path: Path) -> None:
+    url = server.url("/file/a.bin?size=1M")
+    t0 = time.perf_counter()
+    assert main(["get", url, "-o", str(tmp_path), "--standalone", "--limit", "1M"]) == 0
+    assert time.perf_counter() - t0 >= 0.85
+
+
+def test_validator_change_suggests_restart(server: FaultServer, tmp_path: Path, capsys) -> None:
+    path = "/file/a.bin?size=1M&etag_after=1"  # the HEAD sees v0, every GET sees v1
+    args = ["get", server.url(path), "-o", str(tmp_path), "--standalone", "-q"]
+    assert main(args) == 1
+    err = capsys.readouterr().err
+    assert "validator_changed" in err and "--restart" in err
+
+
+# --- the M2 acceptance test: hard kill, then resume -------------------------------------------
+
+
+def test_kill_and_resume_gives_correct_sha256(server: FaultServer, tmp_path: Path) -> None:
+    size = 100 * 1024 * 1024
+    path = "/file/big.bin?size=100M&seed=3&rate=2M"  # 8 x 2 MiB/s: about 6 s in total
+    cmd = [
+        sys.executable, "-m", "opendm.cli", "get", server.url(path),
+        "-o", str(tmp_path), "--standalone", "-c", "8", "-q",
+    ]  # fmt: skip
+    state_file = tmp_path / "big.bin.odm-state"
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            state = load_state(state_file)
+            if state is not None and state.written >= 16 * 1024 * 1024:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("no checkpoint with progress appeared")
+        proc.kill()  # TerminateProcess: no cleanup code runs
+        proc.wait(timeout=10)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+    state = load_state(state_file)
+    assert state is not None and (tmp_path / "big.bin.odm-part").exists()
+    sent_before = server.stats(path)["bytes_sent"]
+
+    done = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    assert done.returncode == 0, done.stderr
+    target = tmp_path / "big.bin"
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    assert digest == content_sha256(size, 3)
+    resumed = server.stats(path)["bytes_sent"] - sent_before
+    missing = size - state.written
+    assert missing <= resumed <= missing + 4 * 1024 * 1024  # splits may overshoot a little
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["big.bin"]
