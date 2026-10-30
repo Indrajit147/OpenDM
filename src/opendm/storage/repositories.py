@@ -38,7 +38,7 @@ _JOB_COLUMNS = (
     "id, url, dest_dir, filename, final_path, category_id, queue_id, position, state, message, "
     "size, downloaded, connections, speed_limit, checksum, verify_tls, referrer, user_agent, "
     "headers, secrets, relinked, error_kind, error_message, sha256, created_at, started_at, "
-    "completed_at"
+    "completed_at, kind, media_options"
 )
 
 
@@ -98,14 +98,16 @@ class JobRepository:
             "secrets": blob, "relinked": int(job.relinked), "error_kind": job.error_kind,
             "error_message": job.error_message, "sha256": job.sha256,
             "created_at": _ts(job.created_at), "started_at": _ts(job.started_at),
-            "completed_at": _ts(job.completed_at),
+            "completed_at": _ts(job.completed_at), "kind": job.kind,
+            "media_options": (json.dumps(job.media_options)
+                              if job.media_options is not None else None),
         }  # fmt: skip
 
     def _job(self, row: sqlite3.Row | tuple[Any, ...]) -> Job:
         (job_id, url, dest_dir, filename, final_path, category_id, queue_id, position, state,
          message, size, downloaded, connections, speed_limit, checksum, verify_tls, referrer,
          user_agent, headers_json, blob, relinked, error_kind, error_message, sha256, created_at,
-         started_at, completed_at) = row  # fmt: skip
+         started_at, completed_at, _kind, media_json) = row  # fmt: skip
         headers, cookies = self._unseal(headers_json, blob)
         request = DownloadRequest(
             url=url, dest_dir=Path(dest_dir), filename=filename, headers=headers,
@@ -120,6 +122,7 @@ class JobRepository:
             error_message=error_message, sha256=sha256,
             created_at=_dt(created_at) or utc_now(), started_at=_dt(started_at),
             completed_at=_dt(completed_at),
+            media_options=json.loads(media_json) if media_json else None,
         )  # fmt: skip
 
     # --- commands ---------------------------------------------------------------------------------
@@ -243,7 +246,12 @@ class JobRepository:
         if old is None:
             raise KeyError(job_id)
         request = dataclasses.replace(old.request, restart=False, part_file=None)
-        job = Job(request, queue_id=old.queue_id, category_id=old.category_id)
+        job = Job(
+            request,
+            queue_id=old.queue_id,
+            category_id=old.category_id,
+            media_options=old.media_options,
+        )
         return self.add(job)
 
 

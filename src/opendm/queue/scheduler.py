@@ -8,6 +8,7 @@ engine events are forwarded unchanged.
 import asyncio
 import contextlib
 import dataclasses
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -43,6 +44,9 @@ from opendm.engine.http.naming import filename_from_url
 from opendm.engine.http.probe import probe as probe_url
 from opendm.engine.http.ratelimit import TokenBucket
 from opendm.engine.http.transport import HttpxTransport
+from opendm.engine.media.download import MediaDownload
+from opendm.engine.media.formats import MediaOptions
+from opendm.engine.media.ytdlp import MediaInfo, ToolPaths, analyze
 from opendm.queue.host_limits import HostLimiter, host_of
 from opendm.queue.power import NoPowerActions, PowerActions
 from opendm.queue.schedule import in_window
@@ -58,9 +62,12 @@ StopReason = Literal["user", "queue", "shutdown", "remove"]
 _LIVE_STATES = frozenset({JobState.PROBING, JobState.DOWNLOADING, JobState.VERIFYING})
 
 
+AnyDownload = HttpDownload | MediaDownload
+
+
 @dataclass
 class _Run:
-    download: HttpDownload
+    download: AnyDownload
     task: "asyncio.Task[None]"
     host: str
     connections: int
@@ -81,8 +88,11 @@ class DownloadManager:
         power: PowerActions | None = None,
         now: Callable[[], datetime] = datetime.now,
         save_interval: float = 2.0,
+        temp_dir: Path | None = None,
     ) -> None:
         self.db = db
+        self.temp_dir = temp_dir or Path(tempfile.gettempdir())  # cookie files for yt-dlp
+        self.tools = ToolPaths()
         self.jobs = JobRepository(db)
         self.queues = QueueRepository(db)
         self.categories = CategoryRepository(db)
@@ -152,6 +162,42 @@ class DownloadManager:
         job = self.jobs.add(
             Job(request, queue_id=queue_id, category_id=category_id, connections=connections)
         )
+        self._emit(JobChanged(job.id))
+        if start:
+            self._manual.add(job.id)
+        self._pump()
+        return job
+
+    def set_tools(self, tools: ToolPaths) -> None:
+        """yt-dlp/FFmpeg locations for media jobs started from now on."""
+        self.tools = tools
+
+    async def analyze_media(self, request: DownloadRequest) -> MediaInfo:
+        """What yt-dlp finds on a page (title, qualities, subtitles, playlist entries)."""
+        return await analyze(
+            self.tools,
+            request,
+            temp_dir=self.temp_dir,
+            proxy=self.settings.proxy,
+            use_system_proxy=self.settings.use_system_proxy,
+        )
+
+    async def add_media(
+        self,
+        request: DownloadRequest,
+        options: MediaOptions,
+        *,
+        queue_id: int = MAIN_QUEUE_ID,
+        start: bool = True,
+        category_id: int | None = None,
+    ) -> Job:
+        if category_id is None:
+            name = "x.mp3" if options.audio_only else "x." + options.container
+            category_id = match_category(name, self.categories.list()).id
+        job = self.jobs.add(
+            Job(request, queue_id=queue_id, category_id=category_id,
+                media_options=options.to_dict())
+        )  # fmt: skip
         self._emit(JobChanged(job.id))
         if start:
             self._manual.add(job.id)
@@ -321,13 +367,30 @@ class DownloadManager:
             self._restart.discard(job.id)
             request = dataclasses.replace(request, restart=True, part_file=None)
         settings = dataclasses.replace(self.settings, connections=connections)
-        download = HttpDownload(
-            request,
-            settings=settings,
-            sink=lambda event, job_id=job.id: self._on_event(job_id, event),
-            global_limiter=self.global_limiter,
-            job_id=job.id,
-        )
+        sink = self._job_sink(job.id)
+        download: AnyDownload
+        if job.media_options is not None:
+            # yt-dlp picks the file name itself; keep the user's choice only if they made one.
+            media_request = dataclasses.replace(
+                job.request, dest_dir=request.dest_dir, part_file=None, restart=False
+            )
+            download = MediaDownload(
+                media_request,
+                MediaOptions.from_dict(job.media_options),
+                tools=self.tools,
+                temp_dir=self.temp_dir,
+                settings=settings,
+                sink=sink,
+                job_id=job.id,
+            )
+        else:
+            download = HttpDownload(
+                request,
+                settings=settings,
+                sink=sink,
+                global_limiter=self.global_limiter,
+                job_id=job.id,
+            )
         self._manual.discard(job.id)
         job.started_at = utc_now()
         job.error_kind = job.error_message = None
@@ -337,7 +400,10 @@ class DownloadManager:
         task = asyncio.create_task(self._drive(job.id, download))
         self._running[job.id] = _Run(download, task, host, connections, job.queue_id, manual)
 
-    async def _drive(self, job_id: str, download: HttpDownload) -> None:
+    def _job_sink(self, job_id: str) -> Callable[[Event], None]:
+        return lambda event: self._on_event(job_id, event)
+
+    async def _drive(self, job_id: str, download: "AnyDownload") -> None:
         error: DownloadError | None = None
         result = None
         try:

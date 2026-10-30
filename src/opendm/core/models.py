@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 MAIN_QUEUE_ID = 1
@@ -136,12 +137,17 @@ class Job:
     downloaded: int = 0
     connections: int | None = None  # None = engine default
     relinked: bool = False  # the URL was refreshed; continue the partial file from it
+    media_options: dict[str, Any] | None = None  # set for yt-dlp (media) jobs
     error_kind: str | None = None
     error_message: str | None = None
     sha256: str | None = None
     created_at: datetime = field(default_factory=utc_now)
     started_at: datetime | None = None
     completed_at: datetime | None = None
+
+    @property
+    def kind(self) -> str:
+        return "media" if self.media_options is not None else "http"
 
     @property
     def name(self) -> str:
