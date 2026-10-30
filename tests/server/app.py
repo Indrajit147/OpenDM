@@ -32,9 +32,13 @@ Routes
     gzip=1              Content-Encoding: gzip, no ranges
     head=fail|lie|nolength
                         HEAD answers 405 / Content-Length 0 / no Content-Length
+    fail_first=<n>      the first n requests (any method) answer 500
+    max_conn=<n>        answer 503 + Retry-After while more than n requests are active
+    retry_after=<sec>   Retry-After value for max_conn (default 1)
 
 Fault state (request counts, first-request time) is kept per full request path,
-so give each test its own path or call ``FaultServer.reset()``.
+so give each test its own path or call ``FaultServer.reset()``. ``FaultServer.stats(path)``
+reports requests, GETs, peak parallel requests and body bytes sent for a path.
 """
 
 import argparse
@@ -174,6 +178,12 @@ class ServerState:
         self._lock = threading.Lock()
         self._hits: dict[str, int] = {}
         self._first: dict[str, float] = {}
+        self._stats: dict[str, dict[str, int]] = {}
+
+    def _stat(self, key: str) -> dict[str, int]:
+        return self._stats.setdefault(
+            key, {"requests": 0, "gets": 0, "active": 0, "peak": 0, "bytes_sent": 0}
+        )
 
     def hit(self, key: str) -> tuple[int, float]:
         """Record a request; return (requests so far including this one, first time)."""
@@ -182,10 +192,33 @@ class ServerState:
             first = self._first.setdefault(key, time.monotonic())
             return self._hits[key], first
 
+    def enter(self, key: str, method: str) -> int:
+        """Mark a request active; return how many are active now (including it)."""
+        with self._lock:
+            stat = self._stat(key)
+            stat["requests"] += 1
+            stat["gets"] += method == "GET"
+            stat["active"] += 1
+            stat["peak"] = max(stat["peak"], stat["active"])
+            return stat["active"]
+
+    def leave(self, key: str) -> None:
+        with self._lock:
+            self._stat(key)["active"] -= 1
+
+    def sent(self, key: str, nbytes: int) -> None:
+        with self._lock:
+            self._stat(key)["bytes_sent"] += nbytes
+
+    def stats(self, key: str) -> dict[str, int]:
+        with self._lock:
+            return dict(self._stat(key))
+
     def reset(self) -> None:
         with self._lock:
             self._hits.clear()
             self._first.clear()
+            self._stats.clear()
 
 
 # --- request handler -----------------------------------------------------------------------
@@ -257,6 +290,18 @@ class FaultHandler(BaseHTTPRequestHandler):
         self._simple(code, b"", {"Location": location})
 
     def _file(self, q: dict[str, str], head: bool) -> None:
+        state = self.server.state
+        active = state.enter(self.path, self.command)
+        try:
+            if "max_conn" in q and active > int(q["max_conn"]):
+                retry = q.get("retry_after", "1")
+                self._simple(503, b"too many connections\n", {"Retry-After": retry})
+                return
+            self._file_response(q, head)
+        finally:
+            state.leave(self.path)
+
+    def _file_response(self, q: dict[str, str], head: bool) -> None:
         size = parse_size(q.get("size", str(DEFAULT_SIZE)))
         seed = int(q.get("seed", "1"))
         range_mode = q.get("range", "bytes")
@@ -272,6 +317,9 @@ class FaultHandler(BaseHTTPRequestHandler):
         if "slow_start" in q:
             time.sleep(float(q["slow_start"]))
         count, first = self.server.state.hit(self.path)
+        if count <= int(q.get("fail_first", "0")):
+            self._simple(500, b"injected failure\n")
+            return
         if "expire_after" in q and time.monotonic() - first >= float(q["expire_after"]):
             self._simple(403, b"link expired\n")
             return
@@ -379,6 +427,7 @@ class FaultHandler(BaseHTTPRequestHandler):
             self.wfile.write(f"{len(data):x}\r\n".encode() + data + b"\r\n")
         else:
             self.wfile.write(data)
+        self.server.state.sent(self.path, len(data))
 
     def _drop(self) -> None:
         """End the connection mid-body. FIN (not RST) so the client gets exactly N bytes."""
@@ -427,6 +476,10 @@ class FaultServer:
 
     def reset(self) -> None:
         self._httpd.state.reset()
+
+    def stats(self, path: str) -> dict[str, int]:
+        """requests, gets, active, peak (parallel requests) and bytes_sent for ``path``."""
+        return self._httpd.state.stats(path)
 
     def start(self) -> Self:
         self._thread = threading.Thread(

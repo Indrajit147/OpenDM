@@ -381,3 +381,49 @@ def test_unknown_route_is_404(server: FaultServer) -> None:
 
 def test_bad_parameter_is_400(server: FaultServer) -> None:
     assert request(server, "/file/a.bin?size=lots")[0].status == 400
+
+
+# --- injected failures, connection limits and stats ---------------------------------------
+
+
+def test_fail_first(server: FaultServer) -> None:
+    path = "/file/a.bin?size=10&fail_first=2"
+    assert [request(server, path)[0].status for _ in range(3)] == [500, 500, 200]
+
+
+def test_max_conn_and_stats(server: FaultServer) -> None:
+    import threading
+
+    path = "/file/a.bin?size=20000&rate=40000&max_conn=2&retry_after=0"
+    results: list[int] = []
+
+    def fetch() -> None:
+        results.append(request(server, path)[0].status)
+
+    threads = [threading.Thread(target=fetch) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(results) == [200, 200, 503, 503]
+    deadline = time.monotonic() + 2  # handlers finish just after clients read the body
+    while server.stats(path)["active"] and time.monotonic() < deadline:
+        time.sleep(0.01)
+    stats = server.stats(path)
+    assert stats["requests"] == stats["gets"] == 4
+    assert stats["peak"] >= 3  # 503s are counted while active
+    assert stats["active"] == 0
+    assert stats["bytes_sent"] == 2 * 20000
+
+
+def test_503_carries_retry_after(server: FaultServer) -> None:
+    import threading
+
+    path = "/file/a.bin?size=20000&rate=40000&max_conn=1&retry_after=7"
+    t = threading.Thread(target=request, args=(server, path))
+    t.start()
+    time.sleep(0.1)
+    resp, _ = request(server, path)
+    t.join()
+    assert resp.status == 503
+    assert resp.getheader("Retry-After") == "7"
