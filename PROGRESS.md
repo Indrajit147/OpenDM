@@ -3,8 +3,7 @@
 ## Current milestone: M6 Browser extension + Native Messaging host (complete, awaiting user review)
 
 ### M6 done (2026-10-30)
-- Node.js 26.13.0 LTS for the extension tests, installed with approval to `D:\Tools
-ode`
+- Node.js 26.13.0 LTS for the extension tests, installed with approval to `D:\Tools\node`
   (SHA-256 verified). Dev-only; the extension has no npm dependencies.
 - `host/`: Native Messaging framing (`protocol.py`), relay to the app over the pipe with
   start-and-wait when the app is not running (`relay.py`), `python -m opendm.host`.
@@ -56,9 +55,7 @@ ode`
 - Tools for tests: `D:\Tools\yt-dlp\yt-dlp.exe`, `D:\Tools\ffmpeg\bin\ffmpeg.exe`; set
   `OPENDM_TEST_TOOLS=D:\Tools`. The app's own tools folder is `D:\Projects\opendm\tools-bin`
   (git-ignored), set by the user in Settings -> Tools.
-- Node for extension tests: `D:\Tools
-ode
-ode.exe --test extension	ests\`.
+- Node for extension tests: `D:\Tools\node\node.exe --test extension\tests\`.
 - PowerShell 5.1 `Invoke-WebRequest` is unusably slow for big files; use `curl.exe`.
 - On Windows `time.monotonic()` ticks every ~15.6 ms; timing tests use `perf_counter` + slack.
 - Offscreen Qt has no usable fonts on Windows; use `scripts/screenshots.py` for visual checks.
