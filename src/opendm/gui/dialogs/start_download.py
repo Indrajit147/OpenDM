@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from opendm.core.checksum import parse_checksum
+from opendm.core.errors import ErrorKind
 from opendm.core.filenames import sanitize_filename
 from opendm.core.models import MAIN_QUEUE_ID, Category, DownloadRequest, ProbeResult, Queue
 from opendm.core.redact import redact_url
@@ -84,6 +86,18 @@ class StartDownloadDialog(QDialog):
         self.error_label = QLabel()
         self.error_label.setWordWrap(True)
         self.error_label.setStyleSheet("color: #c0392b")
+        # Spec 7: certificate checks can only be turned off per download, after a
+        # certificate error, with a warning. Hidden otherwise.
+        self.insecure_box = QCheckBox(self.tr("Download without checking the certificate"))
+        self.insecure_box.setVisible(False)
+        self.insecure_warning = QLabel(self.tr(
+            "Unsafe: anyone between you and the website could change the file. Use this only "
+            "for a site you trust, such as a device on your own network."
+        ))  # fmt: skip
+        self.insecure_warning.setWordWrap(True)
+        self.insecure_warning.setStyleSheet("color: #c0392b")
+        self.insecure_warning.setVisible(False)
+        self.insecure_box.toggled.connect(self.insecure_warning.setVisible)
 
         form = QFormLayout()
         form.addRow(self.tr("Link:"), self.url_label)
@@ -109,6 +123,8 @@ class StartDownloadDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.error_label)
+        layout.addWidget(self.insecure_box)
+        layout.addWidget(self.insecure_warning)
         layout.addWidget(self.buttons)
 
         self.folder_edit.textEdited.connect(self._mark_folder_edited)
@@ -136,6 +152,13 @@ class StartDownloadDialog(QDialog):
     def _probe_failed(self, error: BaseException) -> None:
         self.size_label.setText(self.tr("unknown"))
         message = getattr(error, "message", None) or str(error)
+        if getattr(error, "kind", None) is ErrorKind.TLS:
+            self.error_label.setText(self.tr(
+                "The website's certificate could not be verified ({0}). The download will fail "
+                "unless you turn off the check for it."
+            ).format(message))  # fmt: skip
+            self.insecure_box.setVisible(True)
+            return
         self.error_label.setText(self.tr("Could not check the link: {0}").format(message))
 
     # --- fields ----------------------------------------------------------------------------------
@@ -178,7 +201,10 @@ class StartDownloadDialog(QDialog):
             self.error_label.setText(self.tr("Choose a folder."))
             return
         name = sanitize_filename(self.name_edit.text(), default="") or None
-        request = replace(self._request, dest_dir=Path(folder), filename=name, checksum=checksum)
+        request = replace(
+            self._request, dest_dir=Path(folder), filename=name, checksum=checksum,
+            verify_tls=self._request.verify_tls and not self.insecure_box.isChecked(),
+        )  # fmt: skip
         self.choice = StartChoice(
             request,
             self.category_box.currentData(),
