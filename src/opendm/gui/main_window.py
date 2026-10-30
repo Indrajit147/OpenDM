@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
     settingsRequested = Signal()
     queuesRequested = Signal()
     quitRequested = Signal()
+    mediaRequested = Signal(object)  # DownloadRequest for a video/audio page or stream
 
     def __init__(self, client: EngineClient, settings: AppSettings) -> None:
         super().__init__()
@@ -457,12 +458,16 @@ class MainWindow(QMainWindow):
             self.client.call(lambda m, r=request, c=cid: m.add(r, category_id=c))
         return None
 
-    def open_start_dialog(self, request: DownloadRequest) -> StartDownloadDialog:
+    def open_start_dialog(
+        self, request: DownloadRequest, *, detect_media: bool = True
+    ) -> StartDownloadDialog:
         dialog = StartDownloadDialog(
             self.client, request, base_dir=self.settings.download_dir,
             categories=self.categories, queues=self.queues, parent=self,
+            detect_media=detect_media,
         )  # fmt: skip
         dialog.accepted.connect(lambda: self._start_chosen(dialog))
+        dialog.mediaDetected.connect(self.mediaRequested.emit)
         dialog.setModal(False)
         dialog.show()
         return dialog

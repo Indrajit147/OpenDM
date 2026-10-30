@@ -1,29 +1,37 @@
 """OpenDM desktop app: wires the engine thread, main window, tray, IPC and dialogs."""
 
 import argparse
+import dataclasses
+import datetime
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject
-from PySide6.QtWidgets import QApplication, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from opendm.core.app_settings import AppSettings
 from opendm.core.batch import parse_url_list
 from opendm.core.branding import APP_NAME
 from opendm.core.bridge import EngineThread
-from opendm.core.events import Finished, PowerRequested
+from opendm.core.errors import ErrorKind
+from opendm.core.events import Finished, PowerRequested, ToolProgress
 from opendm.core.models import AfterAction, DownloadRequest, Job
 from opendm.core.paths import app_data_dir, database_path, default_exe_dir, downloads_dir
 from opendm.core.redact import redact_url
 from opendm.core.settings import EngineSettings
 from opendm.discovery.categories import category_folder, match_category
 from opendm.engine.http.naming import filename_from_url
+from opendm.engine.media.drm import PROTECTED_MESSAGE
+from opendm.engine.media.formats import MediaOptions
+from opendm.engine.media.ytdlp import MediaInfo
 from opendm.gui.clipboard import ClipboardMonitor
 from opendm.gui.dialogs.countdown import CountdownDialog
+from opendm.gui.dialogs.media import MediaDialog
 from opendm.gui.dialogs.queues import QueuesDialog
 from opendm.gui.dialogs.settings import SettingsDialog
+from opendm.gui.dialogs.tools import ToolProgressDialog, ToolsConsentDialog, ToolsPanel
 from opendm.gui.dialogs.wizard import FirstRunWizard
 from opendm.gui.engine_client import EngineClient
 from opendm.gui.icons import app_icon
@@ -36,6 +44,15 @@ from opendm.ipc.protocol import Request
 from opendm.ipc.server import IpcServer
 from opendm.ipc.single_instance import InstanceLock
 from opendm.queue.scheduler import DownloadManager
+from opendm.tools.manager import ToolInfo
+
+
+def _relay_progress(dialog: ToolProgressDialog) -> Callable[[ToolProgress], None]:
+    def relay(event: ToolProgress) -> None:
+        if dialog.isVisible():
+            dialog.show_progress(event.tool, event.done, event.total)
+
+    return relay
 
 
 def job_summary(job: Job) -> dict[str, Any]:
@@ -66,7 +83,10 @@ class Application(QObject):
         self.qapp = qapp
         data_dir.mkdir(parents=True, exist_ok=True)
         self.engine = EngineThread(
-            database_path(data_dir), settings=engine_settings, scheduler_interval=scheduler_interval
+            database_path(data_dir),
+            settings=engine_settings,
+            scheduler_interval=scheduler_interval,
+            temp_dir=data_dir / "tmp",  # short-lived cookie files for yt-dlp (per-user folder)
         )
         self.engine.start()
         self.client = EngineClient(self.engine, self)
@@ -84,7 +104,12 @@ class Application(QObject):
         self.window.settingsRequested.connect(self.open_settings)
         self.window.queuesRequested.connect(self.open_queues)
         self.window.quitRequested.connect(self.quit)
+        self.window.mediaRequested.connect(self.open_media)
         self.window.on_close_to_tray = self._closed_to_tray
+        self.consent_dialog: ToolsConsentDialog | None = None
+        self.media_dialog: MediaDialog | None = None
+        self.busy_dialog: ToolProgressDialog | None = None
+        self.tools_panel: ToolsPanel | None = None
 
         self.tray: Tray | None = None
         if Tray.available():
@@ -126,6 +151,7 @@ class Application(QObject):
         hidden = (minimized or self.settings.start_minimized) and self.tray is not None
         if not hidden:
             self.show_window()
+        self.check_tool_updates()
         if urls:
             self.show_window()
             self.window.add_urls(list(urls))
@@ -139,7 +165,9 @@ class Application(QObject):
 
     def _apply_engine_settings(self) -> None:
         engine, limit = self.settings.engine_settings(), self.settings.global_limit
+        folder, overrides = self.settings.tools_dir, self.settings.tool_overrides()
         self.engine.call(lambda m: m.apply_settings(engine, limit))
+        self.engine.call(lambda m: m.configure_tools(folder, overrides))
 
     def save_settings(self, settings: AppSettings) -> None:
         self.settings = settings
@@ -151,11 +179,159 @@ class Application(QObject):
         self.clipboard.enabled = settings.clipboard_monitor
 
     def open_settings(self) -> SettingsDialog:
-        dialog = SettingsDialog(self.settings, self.window.categories, self.window)
+        panel = ToolsPanel(
+            self.client,
+            on_install=lambda names: self.install_tools(names, then=panel.refresh),
+            on_existing=self._use_existing_tool,
+            update_check=self.settings.tool_update_check,
+        )
+        self.tools_panel = panel
+        dialog = SettingsDialog(self.settings, self.window.categories, self.window, panel)
         dialog.accepted.connect(lambda: self._settings_accepted(dialog))
         dialog.setModal(True)
         dialog.show()
         return dialog
+
+    # --- video/audio (yt-dlp) ---------------------------------------------------------------------
+
+    def open_media(self, request: DownloadRequest) -> None:
+        """Page or stream link: make sure the tools exist, analyze it, show the quality picker."""
+
+        def checked(status: list[ToolInfo]) -> None:
+            missing = [t.name for t in status if not t.installed]
+            if missing:
+                self.ask_for_tools(missing, then=lambda: self._analyze(request))
+            else:
+                self._analyze(request)
+
+        self.client.call(lambda m: m.tool_status(), on_done=checked, on_error=self._show_error)
+
+    def ask_for_tools(self, missing: list[str], then: Callable[[], None]) -> None:
+        def show(sizes: dict[str, int | None] | BaseException) -> None:
+            known = sizes if isinstance(sizes, dict) else {}
+            dialog = ToolsConsentDialog(missing, self.settings.tools_dir, known, self.window)
+            dialog.accepted.connect(lambda: self._consented(dialog, then))
+            self.consent_dialog = dialog
+            dialog.show()
+
+        self.client.call(lambda m: m.tool_downloads(), on_done=show, on_error=show)
+
+    def _consented(self, dialog: ToolsConsentDialog, then: Callable[[], None]) -> None:
+        folder = dialog.folder()
+        if folder != self.settings.tools_dir:
+            self.save_settings(_with(self.settings, tools_dir=folder))
+        self.install_tools(dialog.missing, then=then)
+
+    def install_tools(self, names: list[str], then: Callable[[], None] | None = None) -> None:
+        progress = ToolProgressDialog(self.window)
+        self.busy_dialog = progress
+        self.client.toolProgress.connect(_relay_progress(progress))
+        progress.show()
+
+        async def install(m: DownloadManager) -> None:
+            for name in names:
+                await m.install_tool(name)
+
+        def finished(_: object) -> None:
+            progress.close()
+            if then is not None:
+                then()
+
+        def failed(error: BaseException) -> None:
+            progress.close()
+            self._show_error(error)
+
+        self.client.call(install, on_done=finished, on_error=failed)
+
+    def _use_existing_tool(self, name: str, path: Path) -> None:
+        def chosen(info: ToolInfo) -> None:
+            field = "ytdlp_path" if name == "yt-dlp" else "ffmpeg_path"
+            self.save_settings(_with(self.settings, **{field: str(info.path)}))
+            if self.tools_panel is not None:
+                self.tools_panel.refresh()
+
+        self.client.call(
+            lambda m: m.use_existing_tool(name, path), on_done=chosen, on_error=self._show_error
+        )
+
+    def _analyze(self, request: DownloadRequest) -> None:
+        busy = ToolProgressDialog(self.window)
+        busy.setWindowTitle(self.tr("Video or audio"))
+        busy.show_step(self.tr("Looking for video and audio on the page..."))
+        self.busy_dialog = busy
+        busy.show()
+
+        def done(info: MediaInfo) -> None:
+            busy.close()
+            self._pick_media(request, info)
+
+        def failed(error: BaseException) -> None:
+            busy.close()
+            self._media_failed(request, error)
+
+        self.client.call(lambda m: m.analyze_media(request), on_done=done, on_error=failed)
+
+    def _pick_media(self, request: DownloadRequest, info: MediaInfo) -> MediaDialog:
+        dialog = MediaDialog(
+            info, base_dir=self.settings.download_dir, categories=self.window.categories,
+            queues=self.window.queues, parent=self.window,
+        )  # fmt: skip
+        dialog.accepted.connect(lambda: self._add_media(request, dialog))
+        self.media_dialog = dialog
+        dialog.show()
+        return dialog
+
+    def _add_media(self, request: DownloadRequest, dialog: MediaDialog) -> None:
+        choice = dialog.choice
+        if choice is None:
+            return
+        for entry in choice.entries:
+            item = dataclasses.replace(request, url=entry.url, dest_dir=choice.folder)
+            self.client.call(
+                lambda m, r=item: m.add_media(
+                    r, choice.options, queue_id=choice.queue_id, start=choice.start,
+                    category_id=choice.category_id,
+                )
+            )  # fmt: skip
+
+    def _media_failed(self, request: DownloadRequest, error: BaseException) -> None:
+        kind = getattr(error, "kind", None)
+        if kind is ErrorKind.PROTECTED:
+            QMessageBox.information(self.window, APP_NAME, PROTECTED_MESSAGE)
+            return
+        message = getattr(error, "message", None) or str(error)
+        answer = QMessageBox.question(
+            self.window, APP_NAME,
+            self.tr("No video or audio could be found ({0}).\n\n"
+                    "Download the link as a normal file instead?").format(message),
+        )  # fmt: skip
+        if answer == QMessageBox.StandardButton.Yes:
+            self.window.open_start_dialog(request, detect_media=False)
+
+    def _show_error(self, error: BaseException) -> None:
+        message = getattr(error, "message", None) or str(error)
+        QMessageBox.warning(self.window, APP_NAME, message)
+
+    def check_tool_updates(self, *, force: bool = False) -> None:
+        """Opt-in weekly yt-dlp update check (spec 6.8): only notifies, never installs."""
+        if not (self.settings.tool_update_check or force):
+            return
+        today = datetime.date.today()
+        last = self.settings.last_tool_check
+        if not force and last and (today - datetime.date.fromisoformat(last)).days < 7:
+            return
+        self.save_settings(_with(self.settings, last_tool_check=today.isoformat()))
+
+        def done(result: tuple[str | None, str] | None) -> None:
+            if result is not None and self.tray is not None:
+                self.tray.notify(
+                    self.tr("yt-dlp update available"),
+                    self.tr("Version {0} is out. Settings -> Tools -> Download / update.").format(
+                        result[1]
+                    ),
+                )
+
+        self.client.call(lambda m: m.check_ytdlp_update(), on_done=done, on_error=lambda e: None)
 
     def _settings_accepted(self, dialog: SettingsDialog) -> None:
         self.save_settings(dialog.result_settings())
@@ -249,7 +425,10 @@ class Application(QObject):
 
         async def add(m: DownloadManager) -> dict[str, Any]:
             url = args["url"]
+            media = MediaOptions.from_dict(args["media"]) if "media" in args else None
             name = args.get("filename") or filename_from_url(url) or ""
+            if media is not None:
+                name = "x.mp3" if media.audio_only else "x." + media.container
             category = match_category(name, m.categories.list())
             dest = (
                 Path(args["dest_dir"]) if args.get("dest_dir") else category_folder(category, base)
@@ -260,6 +439,12 @@ class Application(QObject):
                 referrer=args.get("referrer"), cookies=args.get("cookies"),
                 checksum=args.get("checksum"), speed_limit=args.get("speed_limit"),
             )  # fmt: skip
+            if media is not None:
+                job = await m.add_media(
+                    request, media, start=args.get("start", True), category_id=category.id,
+                    queue_id=args.get("queue_id", 1),
+                )  # fmt: skip
+                return job_summary(job)
             job = await m.add(
                 request, start=args.get("start", True), category_id=category.id,
                 queue_id=args.get("queue_id", 1), connections=args.get("connections"),

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from opendm.core.app_settings import AppSettings, ProxyMode
 from opendm.core.models import Category
 from opendm.core.settings import MAX_CONNECTIONS
+from opendm.gui.dialogs.tools import ToolsPanel
 
 
 def _folder_row(edit: QLineEdit, parent: QWidget) -> QHBoxLayout:
@@ -54,7 +55,11 @@ def _note(text: str) -> QWidget:
 
 class SettingsDialog(QDialog):
     def __init__(
-        self, settings: AppSettings, categories: list[Category], parent: QWidget | None = None
+        self,
+        settings: AppSettings,
+        categories: list[Category],
+        parent: QWidget | None = None,
+        tools_panel: ToolsPanel | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Settings"))
@@ -147,7 +152,9 @@ class SettingsDialog(QDialog):
         form = QFormLayout(tools)
         self.tools_dir = QLineEdit(str(settings.tools_dir))
         form.addRow(self.tr("Tools folder:"), _folder_row(self.tools_dir, self))
-        form.addRow(QLabel(self.tr("Video tools (yt-dlp, FFmpeg) arrive in a later version.")))
+        self.tools_panel = tools_panel
+        if tools_panel is not None:
+            form.addRow(tools_panel)
         tabs.addTab(tools, self.tr("Tools"))
         tabs.addTab(_note(self.tr("Update checks arrive in a later version.")), self.tr("Updates"))
         self.tabs = tabs
@@ -177,6 +184,11 @@ class SettingsDialog(QDialog):
             proxy_mode=ProxyMode(self.proxy_mode.currentData()),
             proxy_url=self.proxy_url.text().strip(),
             theme=self.theme.currentData(),
+            tool_update_check=(
+                self.tools_panel.update_check.isChecked()
+                if self.tools_panel is not None
+                else self._settings.tool_update_check
+            ),
         )
 
     def result_categories(self) -> list[Category]:

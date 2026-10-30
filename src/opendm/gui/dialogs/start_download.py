@@ -3,6 +3,7 @@
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -23,6 +24,7 @@ from opendm.core.models import MAIN_QUEUE_ID, Category, DownloadRequest, ProbeRe
 from opendm.core.redact import redact_url
 from opendm.core.units import format_bytes
 from opendm.discovery.categories import category_folder, match_category
+from opendm.discovery.classify import LinkKind, classify
 from opendm.engine.http.naming import filename_from_url
 from opendm.gui.engine_client import EngineClient
 
@@ -36,6 +38,8 @@ class StartChoice:
 
 
 class StartDownloadDialog(QDialog):
+    mediaDetected = Signal(object)  # DownloadRequest: the link is a page or stream, not a file
+
     def __init__(
         self,
         client: EngineClient,
@@ -45,9 +49,11 @@ class StartDownloadDialog(QDialog):
         categories: list[Category],
         queues: list[Queue],
         parent: QWidget | None = None,
+        detect_media: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(self.tr("Start download"))
+        self._detect_media = detect_media
         self.resize(600, 300)
         self._client = client
         self._request = request
@@ -115,6 +121,12 @@ class StartDownloadDialog(QDialog):
 
     def _probed(self, result: ProbeResult) -> None:
         self.probe_result = result
+        is_file = classify(result.final_url, result.content_type) is LinkKind.FILE
+        if self._detect_media and not is_file:
+            # A web page or a stream: hand it to the video/audio flow instead.
+            self.reject()
+            self.mediaDetected.emit(self._request)
+            return
         if not self._request.filename:
             self.name_edit.setText(result.filename)
         self.size_label.setText(
