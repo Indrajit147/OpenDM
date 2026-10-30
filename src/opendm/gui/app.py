@@ -28,6 +28,7 @@ from opendm.engine.media.formats import MediaOptions
 from opendm.engine.media.ytdlp import MediaInfo
 from opendm.gui.clipboard import ClipboardMonitor
 from opendm.gui.dialogs.countdown import CountdownDialog
+from opendm.gui.dialogs.links import LinkPickerDialog
 from opendm.gui.dialogs.media import MediaDialog
 from opendm.gui.dialogs.queues import QueuesDialog
 from opendm.gui.dialogs.settings import SettingsDialog
@@ -110,6 +111,7 @@ class Application(QObject):
         self.media_dialog: MediaDialog | None = None
         self.busy_dialog: ToolProgressDialog | None = None
         self.tools_panel: ToolsPanel | None = None
+        self.link_dialog: LinkPickerDialog | None = None
 
         self.tray: Tray | None = None
         if Tray.available():
@@ -410,6 +412,10 @@ class Application(QObject):
             return self.client.call(lambda m: [job_summary(j) for j in m.jobs.list()])
         if request.cmd == "add":
             return self.client.call(self._ipc_add(args))
+        if request.cmd == "capture":
+            return self.capture(args)
+        if request.cmd == "capture_links":
+            return self.capture_links(args)
         job_id = args["job_id"]
         if request.cmd == "pause":
             return self.client.call(lambda m: m.pause(job_id))
@@ -419,6 +425,38 @@ class Application(QObject):
             delete = bool(args.get("delete_file", False))
             return self.client.call(lambda m: m.remove(job_id, delete_file=delete))
         raise ValueError(f"unsupported command {request.cmd}")
+
+    def capture(self, args: dict[str, Any]) -> dict[str, str]:
+        """A download handed over by the browser extension: confirm it in a dialog."""
+        request = DownloadRequest(
+            url=args["url"],
+            dest_dir=self.settings.download_dir,
+            filename=args.get("filename") or None,
+            referrer=args.get("referrer") or args.get("page_url") or None,
+            user_agent=args.get("user_agent") or None,
+            cookies=args.get("cookies") or None,
+        )
+        self.show_window()
+        if args.get("media"):
+            self.open_media(request)
+            return {"shown": "media"}
+        self.window.open_start_dialog(request)
+        return {"shown": "start"}
+
+    def capture_links(self, args: dict[str, Any]) -> dict[str, Any]:
+        """ "Download all links": let the user pick which ones."""
+        self.show_window()
+        dialog = LinkPickerDialog(
+            args["urls"], self.window.categories, page_title=args.get("page_title", ""),
+            parent=self.window,
+        )  # fmt: skip
+        referrer = args.get("page_url") or args.get("referrer") or None
+        dialog.accepted.connect(
+            lambda: self.window.add_urls(dialog.selected(), ask=False, referrer=referrer)
+        )
+        self.link_dialog = dialog
+        dialog.show()
+        return {"shown": "links", "count": dialog.list.count()}
 
     def _ipc_add(self, args: dict[str, Any]) -> Callable[[DownloadManager], Any]:
         base = self.settings.download_dir

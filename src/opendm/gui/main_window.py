@@ -442,18 +442,21 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             self.add_urls(dialog.urls())
 
-    def add_urls(self, urls: list[str], *, ask: bool = True) -> StartDownloadDialog | None:
+    def add_urls(
+        self, urls: list[str], *, ask: bool = True, referrer: str | None = None
+    ) -> StartDownloadDialog | None:
         """One link: show the start dialog. Several: add them all to Main, sorted by category."""
         if not urls:
             return None
         if len(urls) == 1 and ask:
-            return self.open_start_dialog(DownloadRequest(urls[0], self.settings.download_dir))
+            first = DownloadRequest(urls[0], self.settings.download_dir, referrer=referrer)
+            return self.open_start_dialog(first)
         for url in urls:
             name = filename_from_url(url) or ""
             category = match_category(name, self.categories) if self.categories else None
             folder = (category_folder(category, self.settings.download_dir) if category
                       else self.settings.download_dir)  # fmt: skip
-            request = DownloadRequest(url=url, dest_dir=folder)
+            request = DownloadRequest(url=url, dest_dir=folder, referrer=referrer)
             cid = category.id if category else None
             self.client.call(lambda m, r=request, c=cid: m.add(r, category_id=c))
         return None

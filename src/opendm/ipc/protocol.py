@@ -153,13 +153,13 @@ _ARGS: dict[str, dict[str, Callable[[Any], Any]]] = {
         "filename": _str(255),
         "file_size": _int(-1, 2**50),
         "media": _bool,
-    },  # fmt: skip
+    },
     "capture_links": {
         "urls": _link_list,
         "page_url": _optional_url,
         "page_title": _str(1000),
         "referrer": _optional_url,
-    },  # fmt: skip
+    },
 }
 _REQUIRED = {
     "add": {"url"},
