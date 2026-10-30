@@ -55,3 +55,37 @@ the module docstring, which the server also prints at startup.
 5. Open `http://127.0.0.1:8765/file/x.bin?size=1K&cd=রিপোর্ট.pdf`. The saved name is `রিপোর্ট.pdf`.
 6. Press Ctrl+C in CMD. The server stops.
 7. Check the CI run at https://github.com/Indrajit147/OpenDM/actions is green.
+
+## Manual checklist: M1
+
+Keep the test server from the M0 checklist running in one CMD window. In a second CMD window:
+
+```
+cd /d D:\Projects\opendm
+mkdir build\m1
+```
+
+1. Large file with checksum:
+   ```
+   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/big.bin?size=100M&seed=9" -o build\m1 --standalone
+   ```
+   Expect a live progress line, then `Saved:`, `Size: 100.0 MiB` and
+   `SHA-256: 3dc090164912e6fff05772f82494ba9ae508e44577f1fe4b8b3499dbae117684`.
+2. UTF-8 filename:
+   ```
+   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/x?size=1K&cd=%E0%A6%B0%E0%A6%BF%E0%A6%AA%E0%A7%8B%E0%A6%B0%E0%A7%8D%E0%A6%9F.pdf" -o build\m1 --standalone
+   ```
+   Open `build\m1` in Explorer: the file is named `রিপোর্ট.pdf`.
+3. Run command 1 again. The new file is `big (1).bin`; `big.bin` is untouched.
+4. Ctrl+C: start a slow download and press Ctrl+C after a few seconds:
+   ```
+   .venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/slow.bin?size=20M&rate=1M" -o build\m1 --standalone
+   ```
+   Expect `cancelled`, and no `slow.bin.odm-part` in `build\m1`.
+5. Errors (each prints `error: ... [kind]`):
+   - `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/status/404" --standalone` -> `[not_found]`
+   - `.venv\Scripts\opendm-cli.exe get "http://127.0.0.1:8765/file/a.bin?size=5M&drop_at=1000000" -o build\m1 --standalone`
+     -> `[network]` and `partial file kept: ...a.bin.odm-part`
+   - `.venv\Scripts\opendm-cli.exe get "ftp://example.com/a.zip" --standalone` -> `[unsupported_scheme]`
+6. Real internet (optional): `.venv\Scripts\opendm-cli.exe get "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe.spdx.json" -o build\m1 --standalone`
+7. Clean up: `rmdir /s /q build\m1`.

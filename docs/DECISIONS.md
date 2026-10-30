@@ -112,4 +112,40 @@ specification (section 4); later entries were made during development.
 ## D19 License replacement (M0, 2026-10-30)
 - **Context:** The GitHub repo was created with an MIT LICENSE; the spec requires
   GPL-3.0-or-later. The repo owner is the sole author, so relicensing is unrestricted.
-- **Choice:** replaced with the GPL-3.0 text from gnu.org, per the spec. Confirm with the owner.
+- **Choice:** replaced with the GPL-3.0 text from gnu.org, per the spec. Confirmed by the owner.
+
+## D20 Pause semantics in M1 (2026-10-30, approved)
+- **Context:** M1 has pause but no state sidecar (M2).
+- **Choice:** pause keeps `.odm-part` and the in-memory SHA-256 state; resume sends
+  `Range` + `If-Range` (strong ETag, else Last-Modified). A 200 reply (no ranges, or validator
+  changed) restarts from zero. An outside task cancellation (app exit) counts as a pause.
+
+## D21 CLI Ctrl+C (2026-10-30, approved)
+- **Choice:** Ctrl+C cancels and deletes the partial file (exit code 130); it cannot be resumed
+  until M2 adds the sidecar. Failed downloads keep `.odm-part` and report its path.
+
+## D22 Existing files (2026-10-30, approved)
+- **Choice:** never overwrite; pick `name (1).ext`, `name (2).ext`... A name whose `.odm-part`
+  exists counts as taken, and the name is reserved by creating the empty partial file.
+
+## D23 User agent and encoding (2026-10-30, approved)
+- **Choice:** default `User-Agent: OpenDM/<version>`, overridable (the extension passes the
+  browser's UA in M6). Send `Accept-Encoding: identity`; if a server compresses anyway, httpx
+  decodes it and the size is treated as unknown.
+
+## D24 Filename detection (2026-10-30, approved)
+- **Choice:** `filename*` (RFC 5987, UTF-8/ISO-8859-1) > `filename` > last segment of the final
+  URL after redirects > `download`; add an extension from Content-Type when missing, and replace
+  script extensions (.php, .aspx...) taken from the URL. Lenient fixes: raw UTF-8 bytes decoded
+  as Latin-1 are repaired; `%XX` in plain `filename` is decoded only when it forms valid UTF-8.
+
+## D25 Error kinds (2026-10-30)
+- **Choice:** `ErrorKind` with a `retryable` property (CONNECTION, NETWORK, TIMEOUT, SERVER).
+  403 maps to LINK_EXPIRED (the "Refresh link" flow in M2); 404/410 to NOT_FOUND; 408/429/5xx
+  to SERVER. CONNECTION (could not connect at all) is separate from NETWORK so the probe does
+  not retry HEAD as GET against an unreachable host (each refused attempt costs ~2 s on Windows).
+
+## D26 Filename safety limits (2026-10-30)
+- **Choice:** components are limited to 255 UTF-16 units; full paths to 259 characters
+  (including `.odm-part`) unless Windows long paths are enabled (registry `LongPathsEnabled`).
+  Reserved device names get an underscore (`CON.txt` -> `CON_.txt`), including `COM¹`-style names.
