@@ -102,3 +102,27 @@ def test_responses_round_trip() -> None:
 def test_pipe_name_is_per_user() -> None:
     assert pipe_name("Indrajit Gupta") == "opendm-ipc-indrajit_gupta"
     assert pipe_name("..\\evil/") == "opendm-ipc-evil"
+
+
+def test_media_argument() -> None:
+    req = decode_request(line({"v": 1, "cmd": "add", "args": {
+        "url": "https://example.com/watch?v=1", "media": {"quality": "720", "subtitles": ["en"]},
+    }}))  # fmt: skip
+    assert req.args["media"]["quality"] == "720"
+    assert req.args["media"]["subtitles"] == ["en"]
+
+
+@pytest.mark.parametrize(
+    "media",
+    [
+        {"quality": "8k"},
+        {"container": "avi"},
+        {"subtitles": ["en;rm -rf"]},
+        {"subtitles": "en"},
+        {"quality": "best", "cookies_from_browser": "chrome"},
+        "best",
+    ],
+)
+def test_media_argument_rejects(media: object) -> None:
+    with pytest.raises(ProtocolError, match="media"):
+        decode_request(line({"v": 1, "cmd": "add", "args": {"url": "https://h/x", "media": media}}))

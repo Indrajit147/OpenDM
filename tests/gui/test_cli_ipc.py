@@ -66,3 +66,10 @@ def test_pause_resume_remove(qtbot, app, capsys) -> None:
     ]
     assert in_thread(qtbot, lambda: main(["resume", "missing"])) == 1
     assert "missing" in capsys.readouterr().err
+
+
+def test_get_media_through_the_app(qtbot, app, capsys) -> None:
+    argv = ["get", "https://example.com/watch?v=1", "--media", "--quality", "720p"]
+    assert in_thread(qtbot, lambda: main(argv)) == 0
+    (req,) = app
+    assert req.args["media"]["quality"] == "720"

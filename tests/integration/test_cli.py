@@ -188,3 +188,36 @@ def test_kill_and_resume_gives_correct_sha256(server: FaultServer, tmp_path: Pat
     missing = size - state.written
     assert missing <= resumed <= missing + 4 * 1024 * 1024  # splits may overshoot a little
     assert sorted(p.name for p in tmp_path.iterdir()) == ["big.bin"]
+
+
+# --- M5: --media --------------------------------------------------------------------------------
+
+FAKE_YTDLP = Path(__file__).resolve().parents[1] / "fake_tools" / "fake_ytdlp.py"
+
+
+def test_media_standalone(tmp_path: Path, monkeypatch, capsys) -> None:
+    from opendm.cli import __main__ as cli
+    from opendm.engine.media.ytdlp import ToolPaths
+
+    ffmpeg = tmp_path / "ffmpeg.exe"
+    ffmpeg.write_bytes(b"")
+    fake = ToolPaths(ffmpeg=ffmpeg, command=(sys.executable, str(FAKE_YTDLP)))
+    monkeypatch.setattr(cli, "media_tools", lambda folder: fake)
+    code = main(["get", "http://fake/ok", "--media", "--quality", "mp3", "-o", str(tmp_path / "dl"),
+                 "--standalone"])  # fmt: skip
+    assert code == 0
+    assert (tmp_path / "dl" / "Fake Clip [abc].mp3").exists()
+    assert "Saved:" in capsys.readouterr().out
+
+
+def test_media_without_tools_explains(tmp_path: Path, capsys) -> None:
+    code = main(["get", "http://fake/ok", "--media", "--tools-dir", str(tmp_path / "none"),
+                 "-o", str(tmp_path), "--standalone"])  # fmt: skip
+    assert code == 1
+    assert "tool_missing" in capsys.readouterr().err
+
+
+def test_media_rejects_http_only_options(capsys) -> None:
+    assert main(["get", "http://fake/ok", "--media", "--restart", "--standalone"]) == 2
+    with pytest.raises(SystemExit):
+        main(["get", "http://fake/ok", "--media", "--quality", "8k", "--standalone"])
