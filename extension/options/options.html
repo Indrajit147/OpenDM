@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OpenDM Integration settings</title>
+  <link rel="stylesheet" href="../ui.css">
+</head>
+<body class="options">
+  <h1>OpenDM Integration</h1>
+  <section>
+    <label><input type="checkbox" id="takeover"> Send browser downloads to OpenDM</label>
+    <label class="indent">Only files of at least <input type="number" id="minSizeMB" min="0" step="0.5"> MB (0 = any size)</label>
+    <label class="indent block">File types (separated by spaces)
+      <textarea id="extensions" rows="6"></textarea></label>
+    <p class="muted indent">Hold <kbd>Alt</kbd> while clicking a link to let the browser download it instead.</p>
+  </section>
+  <section>
+    <label><input type="checkbox" id="videoButton"> Show a Download button over videos</label>
+    <label><input type="checkbox" id="notifyFailures"> Tell me when OpenDM could not take a download</label>
+  </section>
+  <section class="row">
+    <button id="save" class="primary">Save</button>
+    <button id="reset">Restore defaults</button>
+    <button id="test">Test connection</button>
+    <span id="result"></span>
+  </section>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OpenDM</title>
+  <link rel="stylesheet" href="../ui.css">
+</head>
+<body class="popup">
+  <header>
+    <img src="../icons/icon32.png" alt="" width="20" height="20">
+    <strong>OpenDM</strong>
+    <span id="status" class="status">Checking…</span>
+  </header>
+  <button id="page-video" class="primary">Download this page's video</button>
+  <h2>Media on this page</h2>
+  <ul id="media"></ul>
+  <p id="empty" class="muted" hidden>Nothing detected yet. Start playing the video, then open this menu again.</p>
+  <footer><a href="#" id="options">Settings</a></footer>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
