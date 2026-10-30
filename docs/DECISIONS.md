@@ -400,3 +400,49 @@ specification (section 4); later entries were made during development.
   leftover check of files, shortcut, uninstall entry and browser keys). They run locally after
   a build; CI builds come with the release workflow (M8). Windows Sandbox is not available on
   Windows 11 Home, so the clean-account check is a manual step.
+
+## D64 Release pipeline (M8, 2026-10-31, approved)
+- **Choice:** `.github/workflows/release.yml` runs on `v*` tags on `windows-latest`: checks the
+  tag equals `v` + `opendm.__version__`, lint, extension tests, pytest, build, smoke test,
+  install/upgrade/uninstall test, then `SHA256SUMS.txt` and notes from `CHANGELOG.md`
+  (`scripts/release_notes.py`), and creates a **draft** release with `gh` (pre-release when the
+  version has `-rc.N`). Publishing stays a human click.
+- **Versions:** `X.Y.Z` with optional `-alpha.N`/`-beta.N`/`-rc.N` (`opendm.core.version`);
+  pre-releases sort before the final version. pip shows `0.8.0rc1`; Windows file versions use
+  the four numbers `0.8.0.0` (passed to Inno Setup as `/DFileVersion`).
+- **Inno Setup on CI:** the runner's copy if present, else `choco install innosetup` (6.7.4),
+  on the runner only.
+- **Rejected:** building on every push (slow, nothing to publish); auto-publishing (a bad
+  build would reach users before anyone looked at it).
+
+## D65 App updater (M8, 2026-10-31, approved)
+- **Choice:** `opendm.updater.github_releases`. Off by default; on in the first-run wizard or
+  Settings -> Updates, plus "Check now". Reads the public releases API (no token), ignores
+  drafts, offers pre-releases only when "Include test versions" is on (a `-rc` tag counts as a
+  pre-release even if GitHub's flag says otherwise). Shows version and notes; Install /
+  Skip this version / Later. Install downloads `OpenDM-<v>-setup.exe` into
+  `<install folder>\updates` (data folder from source), refuses links outside
+  `github.com/Indrajit147/OpenDM/releases/download/`, checks the SHA-256 from
+  `SHA256SUMS.txt` (deletes on mismatch), then OpenDM quits and starts the installer after
+  releasing its mutex. The installer runs normally (not silent). Old installers are deleted
+  at the next start. Portable builds open the release page instead (a ZIP cannot replace the
+  running exe safely).
+- **Rejected:** silent updates (spec 6.9); a separate updater exe (more to sign and test);
+  trusting the GitHub API's own digest field only (older releases lack it; the sums file is
+  under our control and published with the build).
+
+## D66 Tools folder (M8, 2026-10-31, user request)
+- **Context:** the user's yt-dlp and FFmpeg sat in Downloads (0.7 let any folder be chosen)
+  and were deleted by a clean-up, so 600 media jobs failed one by one.
+- **Choice:** the tools live in `<install folder>\tools` (the drive chosen at install time;
+  removed by the uninstaller, kept by upgrades), `data\tools` for the portable build, the data
+  folder from source. The wizard no longer asks. Settings and the tools prompt refuse the
+  download folder, Windows' Downloads folder and anything inside them. On start, tools found
+  in the download folder or in 0.7's default (`%LOCALAPPDATA%\OpenDM\tools`, on C:) move to
+  the new folder (only the `yt-dlp` and `ffmpeg` folders; never overwriting). A folder the
+  user chose elsewhere stays.
+- **Missing tools:** media jobs stay queued with "waiting for yt-dlp (Settings -> Tools)",
+  the GUI asks once to download them (`ToolsMissing` event), and the jobs continue as soon as
+  the tools are back. A yt-dlp deleted between the check and the start is reported as
+  "yt-dlp is not installed" (was "file not found"); if the tools look installed but still do
+  not start, the job fails once instead of looping.

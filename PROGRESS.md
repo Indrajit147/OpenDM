@@ -1,44 +1,50 @@
 # Progress
 
-## Current milestone: M7 Packaging (complete, awaiting user review)
+## Current milestone: M8 Release pipeline + updater (complete, awaiting user review)
 
-### M7 done (2026-10-30)
-- Installed with approval: PyInstaller 6.22.3 (venv, dev extra) and Inno Setup 6.7.4
-  (`D:\Tools\InnoSetup`, per user; SHA-256 matched the GitHub release digest, Authenticode
-  signature valid).
-- Version 0.7.0 with one source (`opendm.__version__`). The app sets AppUserModelID
-  `Indrajit147.OpenDM` and holds mutex `OpenDM-AppRunning` for the installer. `write_ico()` makes
-  the program/installer icon from the drawn app icon.
-- `installer/opendm.spec`: one folder with OpenDM.exe, opendm-cli.exe, opendm-host.exe (icons,
-  version info; console programs without Qt; unused Qt parts dropped), licenses and the
-  unpacked extension. `scripts/build.cmd` -> 88 MB folder, 45 MB portable ZIP, 26 MB setup.
-- `installer/opendm.iss`: per-user install (folder choice, Start menu, optional desktop icon,
-  Chrome/Edge registration, close-the-app check), upgrade cleanup, uninstaller that removes
-  files/shortcuts/keys and asks before deleting user data.
-- `opendm-host.exe --register|--unregister|--status` and Settings -> Browser (status, set up,
-  remove, extension folder). IPC `quit` command.
-- Decisions D60–D63.
+### M8 done (2026-10-31)
+- Version `0.8.0-rc.1` (pre-release versions: `opendm.core.version`), `CHANGELOG.md`,
+  `scripts/release_notes.py`. Windows file version `0.8.0.0` passed to PyInstaller and Inno.
+- `.github/workflows/release.yml`: on `v*` tags builds, tests (pytest, smoke, install test),
+  writes `SHA256SUMS.txt` and notes, and creates a **draft** release (pre-release for `-rc`).
+- Updater (`opendm.updater.github_releases`): opt-in startup check and "Check now", release
+  notes, Install (download to `<install>\updates`, SHA-256 check, runs after OpenDM exits),
+  Skip this version, Later; portable opens the release page. Settings -> Updates, wizard page.
+- Tools folder (user request): `<install>\tools` / portable `data\tools`; never the download
+  folder (refused in Settings and the tools prompt); tools in Downloads or in 0.7's
+  `%LOCALAPPDATA%\OpenDM\tools` are moved on start; uninstall removes `tools` and `updates`.
+- Missing tools: media jobs wait and the GUI asks once; they continue when the tools are back.
+- Fixes: YouTube analysis with multi-MB output (64 KiB line limit), logged-in YouTube
+  cookies hiding the streams (retry without cookies), "file not found" -> "yt-dlp is not
+  installed", the status bar total after a removal, the wizard's outdated browser text; a
+  video inside a playlist/Mix is analyzed alone with "Show the whole playlist...".
+- Decisions D64-D66.
 
 ### Results
-- `pytest -q`: 657 passed, 8 skipped (real-tool tests); with `OPENDM_TEST_TOOLS=D:\Tools`: 665
-  passed. Node: 13 extension tests passed. `ruff check .`/`format`: clean.
-- `scripts/smoke_dist.py` (from the portable ZIP): 14/14 checks passed: CLI standalone download
-  with the right SHA-256, host replies, GUI starts hidden in portable mode, answers through the
-  host and the CLI, keeps data next to the exe, quits cleanly.
-- `scripts/installer_test.py`: 38/38 checks passed: silent install to `build\install-test`,
-  files, Start menu shortcut, uninstall entry, manifest + Chrome/Edge keys, installed CLI and
-  host run; reinstall (upgrade path); uninstall leaves no files, shortcut, uninstall entry or
-  browser keys; `%LOCALAPPDATA%\OpenDM` untouched; dev registration restored.
+- `pytest` with real tools: 745 passed, 2 failed. The 2 are HTTP timing tests
+  (`test_speed_limit_within_10_percent`, `test_external_cancellation_checkpoints`) that fail the
+  same way on the pre-M8 commit on this PC tonight (slow local connection start under load);
+  GitHub CI is the reference run. 747 tests (671 before M8). Node: 13 passed. `ruff check`/`format`: clean.
+- `scripts/smoke_dist.py` (0.8.0-rc.1 portable ZIP): 14/14. Version info shows 0.8.0-rc.1.
+- `scripts/installer_test.py` was not run locally (OpenDM is installed on this PC; the test needs
+  a machine without it). The release workflow runs it on GitHub; it now also checks that
+  upgrades keep `tools` and the uninstaller removes `tools` and `updates`.
+- Sizes: setup 26 MB, portable ZIP 45 MB.
 
 ### Known limitations
-- Unsigned builds: SmartScreen warns. Signing options are part of M8.
-- Not tested on a second Windows account (Windows 11 Home has no Windows Sandbox): manual step.
-- The desktop shortcut and the "close OpenDM first" prompt are covered only by the manual
-  checklist.
-- Builds are made locally; CI builds and releases come with M8.
-- The user's manual checklists for M4 steps 9-14, M5, M6 and M7 have not been reported yet.
+- The release workflow has not run on GitHub yet: it runs when the `v0.8.0-rc.1` tag is
+  pushed (with the user's go-ahead), and its draft must be published by the user.
+- Unsigned builds: SmartScreen warns (signing options are M9).
+- The updater was tested against a fake GitHub on the test server; the real path (rc.1 ->
+  rc.2) is manual checklist step 7.
+- YouTube videos that need a login still fail without a JavaScript runtime for yt-dlp
+  (cookies are dropped on retry); planned for later.
+- The user's manual checklists for M4 steps 9-14, M5, M6, M7 and M8 have not been reported.
 
 ### Earlier milestones
+- **M7 (2026-10-30):** PyInstaller build, per-user Inno Setup installer, portable ZIP,
+  Settings -> Browser, packaging tests. D60-D63. Fixes after review: long yt-dlp lines,
+  cookie retry.
 - **M6 (2026-10-30):** Native Messaging host, MV3 extension for Chrome/Edge (takeover, menus,
   media detection, video button), link picker. D56–D59.
 - **M5 (2026-10-30):** tool manager (verified yt-dlp/FFmpeg installs with rollback), media
@@ -51,14 +57,9 @@
 - **M1:** errors, events, filename handling, probe, CLI. **M0:** tooling, test server, CI.
 
 ### Next
-- User runs the M7 manual checklist (docs/TESTING.md) and reviews.
-- On approval: plan **M8 Release pipeline + updater**.
-- Also in M8 (user request, 2026-10-30): yt-dlp/FFmpeg go in their own folder chosen at install
-  time (installer: next to the app's data, e.g. `%LOCALAPPDATA%\OpenDM\tools`; portable: `data\tools`),
-  never in Downloads, so cleaning Downloads cannot remove them. Existing installs with tools in
-  Downloads get moved. Also: if tools go missing, offer to reinstall them instead of failing every
-  job; report a missing yt-dlp.exe as "yt-dlp is not installed"; a video link inside a Mix/playlist
-  defaults to that one video.
+- Push tag `v0.8.0-rc.1` once CI on main is green, check the Release run, user publishes the draft as a
+  pre-release and runs the M8 checklist (docs/TESTING.md); then `v0.8.0-rc.2` for the update.
+- On approval: plan **M9 Hardening and public launch**.
 
 ### Environment notes
 - No `gh` CLI; pushes use plain `git` via Git Credential Manager from the Terminal panel tab.
@@ -68,7 +69,8 @@
   (git-ignored), set by the user in Settings -> Tools.
 - Build: `scripts\build.cmd`; Inno Setup at `D:\Tools\InnoSetup\ISCC.exe`. In Git Bash pass
   `MSYS_NO_PATHCONV=1` to ISCC (its `/D` switches look like paths).
-- Node for extension tests: `D:\Tools\node\node.exe --test extension\tests\`.
+- Node for extension tests: `D:\Tools\node\node.exe --test extension\tests\logic.test.mjs
+  extension\tests\manifest.test.mjs`.
 - PowerShell 5.1 `Invoke-WebRequest` is unusably slow for big files; use `curl.exe`.
 - On Windows `time.monotonic()` ticks every ~15.6 ms; timing tests use `perf_counter` + slack.
 - Offscreen Qt has no usable fonts on Windows; use `scripts/screenshots.py` for visual checks.

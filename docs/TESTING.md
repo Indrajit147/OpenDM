@@ -296,3 +296,44 @@ Manual checklist (quit any OpenDM running from source first, from its tray menu)
    uninstall (Windows 11 Home has no Windows Sandbox).
 10. Restore the dev setup afterwards: `scripts\register_host_dev.cmd`, and reload the unpacked
     extension from `D:\Projects\opendm\extension` to keep testing from source.
+
+## Release and update tests: M8
+
+Automated (in `pytest`): versions and changelog (`tests/unit/test_versions.py`), updater
+against a fake releases API on the test server (`tests/integration/test_updater.py`: newer
+release found, drafts and unwanted pre-releases ignored, wrong or missing checksum refused,
+links outside the project refused), tools folder rules and moving
+(`tests/unit/test_tools_location.py`, `tests/gui/test_tools_location_gui.py`), media jobs
+waiting for missing tools (`tests/integration/test_manager_media.py`), update dialog,
+Settings -> Updates and wizard (`tests/gui/test_updates_gui.py`).
+
+The release workflow runs on GitHub when a tag is pushed (`git push origin v0.8.0-rc.1`). It
+creates a **draft** release; nothing is public until you press Publish.
+
+Manual checklist:
+
+1. On GitHub -> Actions, the "Release" run for `v0.8.0-rc.1` is green. Releases shows a
+   draft "OpenDM 0.8.0-rc.1" with `OpenDM-0.8.0-rc.1-setup.exe`, the portable ZIP and
+   `SHA256SUMS.txt`, and the notes from CHANGELOG.md. Edit it, tick "Set as a pre-release"
+   (already ticked), and press **Publish release**.
+2. Download the setup from that release page and install over your current OpenDM (same
+   folder, e.g. `D:\Softtt\OpenDM`). Your downloads list and settings are still there.
+3. Tools: a tray message says yt-dlp and FFmpeg moved; they are now in
+   `D:\Softtt\OpenDM\tools`, no longer in Downloads. Settings -> Tools shows that folder and
+   both tools as installed. Try to set the tools folder to your Downloads folder: OpenDM
+   refuses with a message.
+4. Missing tools: quit OpenDM, rename `D:\Softtt\OpenDM\tools` to `tools-x`, start OpenDM and
+   add a YouTube link as MP3. The job waits ("waiting for yt-dlp and FFmpeg") and OpenDM asks
+   once to download the tools. Cancel, rename the folder back, restart OpenDM: the job runs.
+5. Playlist links: a YouTube link copied while a Mix plays (`...&list=RD...`) shows just that
+   video, with "Show the whole playlist..." above the options.
+6. Settings -> Updates: "You have OpenDM 0.8.0-rc.1". Tick "Check for a new OpenDM when it
+   starts" and "Include test versions". Click **Check now**: "You have the latest version".
+7. Tell Claude when you are here: it pushes `v0.8.0-rc.2`. Publish that draft as in step 1.
+   Restart OpenDM: the update dialog shows 0.8.0-rc.2 and its notes. Click **Install**: it
+   downloads, OpenDM closes, the installer opens; finish it. Settings -> Updates now says
+   0.8.0-rc.2, and `D:\Softtt\OpenDM\updates` is empty after the next start.
+8. "Skip this version" on an offered update keeps the startup check quiet about it; "Check
+   now" still shows it. With the update check off, OpenDM makes no request to GitHub.
+9. Portable: unzip the rc.1 portable ZIP into a new folder, turn on the update check there:
+   the dialog offers "Open release page" instead of Install.
