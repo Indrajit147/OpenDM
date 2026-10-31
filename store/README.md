@@ -90,7 +90,10 @@ certifications accordingly.
 ## Edge Add-ons: step by step
 
 1. **Register (free, once).** Go to
-   [Partner Center for Edge](https://partner.microsoft.com/dashboard/microsoftedge/overview)
+   [Partner Center for Edge](https://partner.microsoft.com/dashboard/microsoftedge/public/login)
+   (if only "Home / My access" appears, open
+   [Account settings -> Programs](https://partner.microsoft.com/dashboard/account/v3/settings/programs)
+   and click *Get started* on the Microsoft Edge card)
    and sign in with a personal Microsoft or GitHub account. Choose to register as an
    *Individual*, fill in your name and contact details, accept the Microsoft Edge Developer
    Agreement and wait for the confirmation email.
