@@ -1,6 +1,30 @@
 # Progress
 
-## Current milestone: M9 Hardening and public launch (complete: 1.0.0)
+## Current milestone: M10 part 1 - Edge Add-ons, code signing, GitHub settings (prepared)
+
+### Done (2026-10-31)
+- Extension: the popup and options page tell apart "app not installed" (link to the latest
+  release), "OpenDM does not know this extension yet" (update, then Repair) and "not
+  running" (`extension/lib/status.js`, tested). Edge store ZIP from
+  `scripts/package_extension.py`; Partner Center steps, certification notes and a 300 px logo
+  in `store/`.
+- Code signing: `scripts/build.py --stage programs|package`; the release workflow signs the
+  programs and then the installer through SignPath once `SIGNPATH_ORGANIZATION_ID` is set
+  (skipped until then). Application answers and SignPath setup in docs/CODE_SIGNING.md;
+  README has a code signing policy section. D69-D70.
+- docs/GITHUB_SETTINGS.md: 2FA, private vulnerability reporting, Dependabot, secret
+  scanning, ruleset for main, About/topics.
+- Not done, by decision: DRM circumvention (illegal, against spec section 2, SignPath and
+  store rules). Chrome Web Store waits for the one-time fee.
+- Tests: 775 Python, 14 extension; ruff clean.
+
+### Waiting on the user
+- GitHub settings (docs/GITHUB_SETTINGS.md), starting with two-factor authentication.
+- Edge: register in Partner Center, submit `build\store\opendm-extension-1.0.0.zip` with the
+  listing in `store/README.md`; send Claude the store ID once it is live -> OpenDM 1.0.1.
+- SignPath: apply (docs/CODE_SIGNING.md); after acceptance add the secret and variables.
+
+## Previous milestone: M9 Hardening and public launch (complete: 1.0.0)
 
 ### M9 done (2026-10-31)
 - Logs without secrets and Settings -> General -> Export diagnostics (D67).
@@ -29,11 +53,6 @@
 - GitHub: CI green on 74df9bc (after fixing the new pipe test for the runner's built-in
   Administrator, listed as the alias LA). Release workflow for `v1.0.0-rc.1` green (5.5 min);
   the draft is waiting to be published by the user.
-
-### Waiting on the user
-- Optional, the user's decisions: Chrome Web Store account (one-time fee), Edge Add-ons
-  account (free), SignPath Foundation application, GitHub two-factor authentication and
-  private vulnerability reporting (repository Settings -> Security).
 
 ### Known limitations
 - Unsigned builds (SmartScreen). YouTube videos that need a login need a JavaScript runtime
