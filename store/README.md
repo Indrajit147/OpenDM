@@ -112,8 +112,12 @@ certifications accordingly.
    app. To test: install OpenDM from https://github.com/Indrajit147/OpenDM/releases/latest,
    open Settings > Browser and click Set up, then start a download in Edge. Without the app
    the popup shows 'App not installed' with a link to get it."*
-8. **Publish** and wait for certification (Microsoft quotes up to 7 business days).
-9. **When it is live:** open the listing; its address ends with the extension ID (32 letters
-   a-p). Send it to Claude: it goes into `EXTENSION_IDS`, OpenDM 1.0.1 is released, and users
-   who update and click *Repair* in Settings -> Browser can use the store version. Until 1.0.1
-   is installed, the store version shows "Update OpenDM".
+8. **Before publishing, look for the ID.** After the upload, Partner Center usually shows the
+   extension's ID (32 letters a-p) on the extension's overview or "Extension identity"
+   section. If it is there, send it to Claude first: OpenDM 1.0.1 with that ID is released
+   before certification, so Microsoft's tester sees "Connected" instead of "Update OpenDM".
+9. **Publish** and wait for certification (Microsoft quotes up to 7 business days).
+10. **When it is live** (if the ID was not sent in step 8): open the listing; its address ends with the extension ID (32 letters
+    a-p). Send it to Claude: it goes into `EXTENSION_IDS`, OpenDM 1.0.1 is released, and users
+    who update and click *Repair* in Settings -> Browser can use the store version. Until 1.0.1
+    is installed, the store version shows "Update OpenDM".
