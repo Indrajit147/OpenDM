@@ -493,3 +493,12 @@ specification (section 4); later entries were made during development.
   `EXTENSION_IDS` in a follow-up release (1.0.1) and reaches users through Settings ->
   Browser -> Repair. The popup and options page tell apart "app not installed" (link to the
   release), "OpenDM does not know this extension yet" (update and Repair) and "not running".
+
+## D71 Edge listing live; SignPath Foundation declined for now (M10, 2026-10-31)
+- **Edge:** OpenDM Integration is published on Edge Add-ons (CRX ID
+  `bionffckkflcblecfgnclbndjflemgld`, Store ID `0RDCKBJVQJVL`); OpenDM 1.0.1 allows it.
+- **Signing:** SignPath Foundation declined the application because the project does not yet
+  have enough public visibility (stars, forks, articles, discussions), and invited a new
+  application later. Releases stay unsigned; the workflow's signing steps stay off.
+- **Rejected for now:** a paid SignPath subscription or certificate (cost). Reapply when the
+  project has visible adoption (store users, stars, outside mentions).

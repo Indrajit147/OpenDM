@@ -30,14 +30,20 @@ nothing is written to the registry except when you set up the browser connection
 
 ## Browser extension (Chrome and Edge)
 
-1. In OpenDM open **Settings -> Browser** and click **Set up for Chrome and Edge**.
-2. In Chrome open `chrome://extensions` (Edge: `edge://extensions`), turn on
-   **Developer mode**, click **Load unpacked** and choose the `extension` folder shown in
-   Settings -> Browser (for example `D:\Apps\OpenDM\extension`).
-3. Click the OpenDM icon in the browser toolbar: it should say "Connected".
+Needs OpenDM 1.0.1 or newer. The installer sets up the browser connection; with the portable
+version, open OpenDM -> **Settings -> Browser** and click **Set up for Chrome and Edge**.
 
-Store versions for the Chrome Web Store and Edge Add-ons are being prepared; once they are
-published you can install from there instead.
+**Edge:** install **OpenDM Integration** from
+[Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/opendm-integration/bionffckkflcblecfgnclbndjflemgld).
+
+**Chrome** (until it is in the Chrome Web Store), or Edge without the store:
+
+1. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
+2. Click **Load unpacked** and choose the `extension` folder shown in Settings -> Browser
+   (for example `D:\Apps\OpenDM\extension`).
+
+Then click the OpenDM icon in the browser toolbar: it should say "Connected". If it says
+"Update OpenDM", update OpenDM and click **Repair** in Settings -> Browser.
 
 ## Updating
 

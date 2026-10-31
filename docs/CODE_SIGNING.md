@@ -4,6 +4,10 @@ OpenDM's programs and installer are not signed today. Windows SmartScreen theref
 "Windows protected your PC" for new downloads until a file has built up reputation. Users
 can check a download against the release's `SHA256SUMS.txt` (see [INSTALL.md](INSTALL.md)).
 
+**Status (2026-10-31):** SignPath Foundation declined the first application (not enough
+public visibility yet) and invited a new one later; see D71. Reapply with the answers below
+once OpenDM has stars, store users or outside mentions to list under *Reputation*.
+
 ## Options
 
 | Option | Cost | Notes |

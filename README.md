@@ -38,8 +38,10 @@ no telemetry.
 2. Run it from File Explorer. The builds are not code-signed yet, so Windows SmartScreen may
    warn: choose *More info -> Run anyway* only for a file from this repository's releases
    (you can check it against `SHA256SUMS.txt`, see the [install guide](docs/INSTALL.md)).
-3. For the browser: OpenDM -> *Settings -> Browser -> Set up for Chrome and Edge*, then load
-   the `extension` folder shown there as an unpacked extension.
+3. For the browser: **Edge** - install
+   [OpenDM Integration from Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/opendm-integration/bionffckkflcblecfgnclbndjflemgld).
+   **Chrome** - load the `extension` folder shown in OpenDM -> *Settings -> Browser* as an
+   unpacked extension ([install guide](docs/INSTALL.md#browser-extension-chrome-and-edge)).
 
 Windows 10 (1809+) or 11, 64-bit.
 
@@ -54,10 +56,11 @@ encrypted and only sent to the site they belong to. See [PRIVACY.md](docs/PRIVAC
 
 Releases are built from tagged source by the public
 [release workflow](.github/workflows/release.yml) on GitHub-hosted runners. They are not
-code-signed yet: OpenDM has applied to the [SignPath Foundation](https://signpath.org) for
-free code signing of open-source software ([CODE_SIGNING.md](docs/CODE_SIGNING.md)). Once
-accepted, releases are signed through [SignPath.io](https://signpath.io) with a certificate
-issued to SignPath Foundation, and every signing request is approved by hand.
+code-signed yet. The [SignPath Foundation](https://signpath.org) (free code signing for
+open-source software) asked OpenDM to reapply once the project is more widely known; the
+release workflow is ready for it ([CODE_SIGNING.md](docs/CODE_SIGNING.md)). Once accepted,
+releases are signed through [SignPath.io](https://signpath.io) with a certificate issued to
+SignPath Foundation, and every signing request is approved by hand.
 
 - Author, reviewer and approver: [Indrajit Gupta](https://github.com/Indrajit147)
 - Privacy policy: [PRIVACY.md](docs/PRIVACY.md). OpenDM sends nothing to its developers;
