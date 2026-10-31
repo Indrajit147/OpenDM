@@ -476,3 +476,20 @@ specification (section 4); later entries were made during development.
 - **Stores and signing:** listing material in `store/`, store ZIP without the development
   key (`scripts/package_extension.py`); signing options in docs/CODE_SIGNING.md, SignPath
   Foundation recommended after 1.0. The installer shows a privacy note (SignPath condition).
+
+## D69 Code signing in the release workflow (M10, 2026-10-31, approved)
+- **Choice:** SignPath Foundation through `signpath/github-action-submit-signing-request@v3`.
+  `scripts/build.py --stage programs|package` splits the build so the three programs are
+  signed before the installer packs them, then the installer is signed. The signing steps run
+  only when the repository variable `SIGNPATH_ORGANIZATION_ID` is set (token as the secret
+  `SIGNPATH_API_TOKEN`), so releases stay unsigned and unchanged until SignPath accepts the
+  project. Each request waits (up to an hour) for the maintainer's manual approval.
+- **Rejected:** signing only the installer (the programs would still trigger SmartScreen
+  when run from the portable ZIP); a paid certificate (cost, hardware-token requirement).
+
+## D70 Store builds of the extension (M10, 2026-10-31, approved)
+- **Choice:** Edge Add-ons first (free); Chrome Web Store later (one-time fee). The store ZIP
+  has no development `key`, so the store assigns its own ID; that ID is added to
+  `EXTENSION_IDS` in a follow-up release (1.0.1) and reaches users through Settings ->
+  Browser -> Repair. The popup and options page tell apart "app not installed" (link to the
+  release), "OpenDM does not know this extension yet" (update and Repair) and "not running".

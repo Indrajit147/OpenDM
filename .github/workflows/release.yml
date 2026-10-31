@@ -61,8 +61,62 @@ jobs:
           if (-not (Test-Path $iscc)) { Write-Output "::error::ISCC.exe not found"; exit 1 }
           "ISCC=$iscc" >> $env:GITHUB_ENV
 
+      # Code signing (D69, docs/CODE_SIGNING.md) runs only once SignPath has accepted the
+      # project and the repository variable SIGNPATH_ORGANIZATION_ID is set; until then the
+      # build is unsigned and these steps are skipped. The programs are signed first, then
+      # packaged into the ZIP and installer, then the installer itself is signed.
+      - name: Build the programs
+        run: python scripts/build.py --stage programs
+
+      - name: Upload programs for signing
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        id: unsigned-programs
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-programs
+          path: |
+            dist/OpenDM/OpenDM.exe
+            dist/OpenDM/opendm-cli.exe
+            dist/OpenDM/opendm-host.exe
+
+      - name: Sign the programs (SignPath, waits for approval)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: programs
+          github-artifact-id: ${{ steps.unsigned-programs.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/OpenDM
+
       - name: Build installer and portable ZIP
-        run: python scripts/build.py --iscc "${{ env.ISCC }}"
+        run: python scripts/build.py --stage package --iscc "${{ env.ISCC }}"
+
+      - name: Upload installer for signing
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        id: unsigned-setup
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-setup
+          path: dist/OpenDM-${{ env.VERSION }}-setup.exe
+
+      - name: Sign the installer (SignPath, waits for approval)
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist
 
       - name: Smoke test (portable ZIP)
         run: python scripts/smoke_dist.py

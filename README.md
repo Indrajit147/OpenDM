@@ -50,6 +50,17 @@ for the update check if you turn it on. Cookies and logins from the browser are 
 encrypted and only sent to the site they belong to. See [PRIVACY.md](docs/PRIVACY.md) and
 [SECURITY.md](docs/SECURITY.md) (including how to report a security problem privately).
 
+## Code signing policy
+
+Releases are built from tagged source by the public
+[release workflow](.github/workflows/release.yml) on GitHub-hosted runners. They are not
+code-signed yet; signing is planned through a free open-source signing program
+([CODE_SIGNING.md](docs/CODE_SIGNING.md)), and every signing request will be approved by hand.
+
+- Author, reviewer and approver: [Indrajit Gupta](https://github.com/Indrajit147)
+- Privacy policy: [PRIVACY.md](docs/PRIVACY.md). OpenDM sends nothing to its developers;
+  the update check is off until you turn it on.
+
 ## Disclaimer
 
 You are responsible for making sure you have the right to download any content you use

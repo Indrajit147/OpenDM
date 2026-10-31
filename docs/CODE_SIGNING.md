@@ -27,11 +27,66 @@ that the software is already released in the form to be signed).
 | Disclose data transfers in a privacy policy, **show it during installation**, offer a way to turn them off | [PRIVACY.md](PRIVACY.md); the installer shows a privacy note (`installer/privacy-note.txt`) before the folder page; the update check is off by default. |
 | Announce system configuration changes; provide an uninstaller | The installer lists the browser registration; uninstaller included. |
 | Team roles (authors, reviewers, approvers) and MFA for everyone on SignPath and GitHub | **To do:** turn on GitHub two-factor authentication and name the roles. |
-| A "Code signing policy" section on the home and download pages (signing credit, team roles, privacy policy link) | **To do** once accepted (README and the release notes template). |
+| A "Code signing policy" section on the home and download pages (signing credit, team roles, privacy policy link) | The README has the section with roles and the privacy policy; the credit line is added once SignPath accepts the project. |
 | Product name and version set consistently in each build | Already: version info from `opendm.__version__` in every program and the installer. |
 
-## What changes in the release workflow once approved
+## The release workflow is ready (D69)
 
-After the build step, the workflow uploads `dist\OpenDM\*.exe` and the setup to SignPath,
-waits for the manual approval, and continues with the signed files (smoke test, install
-test, checksums, draft release). The `SHA256SUMS.txt` then covers the signed files.
+`.github/workflows/release.yml` already contains the signing steps; they are skipped while
+the repository variable `SIGNPATH_ORGANIZATION_ID` is empty, so releases stay unsigned
+until SignPath is set up. With it set, a release:
+
+1. builds the three programs (`scripts\build.py --stage programs`);
+2. sends `OpenDM.exe`, `opendm-cli.exe` and `opendm-host.exe` to SignPath (artifact
+   configuration `programs`) and waits until you approve the request in SignPath;
+3. builds the portable ZIP and the installer from the signed programs (`--stage package`);
+4. sends the setup to SignPath (artifact configuration `installer`) and waits again;
+5. runs the smoke and install tests on the signed files and writes `SHA256SUMS.txt` for them.
+
+## Applying: step by step (maintainer)
+
+1. Turn on two-factor authentication on GitHub (see [GITHUB_SETTINGS.md](GITHUB_SETTINGS.md)).
+2. Apply on [signpath.org](https://signpath.org) ("Apply for free code signing"). Answers
+   you can paste:
+   - **Project:** OpenDM, https://github.com/Indrajit147/OpenDM, GPL-3.0-or-later.
+   - **Description:** A free, open-source download manager for Windows (multi-connection
+     downloads, queues, video downloads through yt-dlp, a Chrome/Edge extension). No
+     telemetry; DRM-protected content is refused.
+   - **What is signed:** `OpenDM.exe`, `opendm-cli.exe`, `opendm-host.exe` (PyInstaller) and
+     the Inno Setup installer `OpenDM-<version>-setup.exe`, built by the public GitHub
+     Actions release workflow on GitHub-hosted runners from tagged source.
+   - **Third-party components:** Python, Qt for Python (LGPL-3.0), httpx, PyInstaller
+     bootloader (GPL with exception). yt-dlp and FFmpeg are not shipped; the app downloads
+     them with the user's consent.
+   - **Releases:** https://github.com/Indrajit147/OpenDM/releases (1.0.0, 2026-10-31).
+   - **Privacy policy:** https://github.com/Indrajit147/OpenDM/blob/main/docs/PRIVACY.md
+   - **Team:** Indrajit Gupta (author, reviewer, approver).
+3. When SignPath accepts the project, in SignPath:
+   - add the predefined **GitHub.com trusted build system** to the organization and link
+     it to the project;
+   - create two **artifact configurations** with these slugs:
+     - `programs`:
+       ```xml
+       <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+         <zip-file>
+           <pe-file path="OpenDM.exe" />
+           <pe-file path="opendm-cli.exe" />
+           <pe-file path="opendm-host.exe" />
+         </zip-file>
+       </artifact-configuration>
+       ```
+     - `installer`:
+       ```xml
+       <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+         <zip-file>
+           <pe-file path="OpenDM-*-setup.exe" />
+         </zip-file>
+       </artifact-configuration>
+       ```
+   - note the organization ID, project slug and signing policy slug, and create an API
+     token for a CI user that may submit requests.
+4. In GitHub, repository **Settings -> Secrets and variables -> Actions**:
+   - secret `SIGNPATH_API_TOKEN` = the API token;
+   - variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`, `SIGNPATH_POLICY_SLUG`.
+5. Tell Claude: the next release (for example 1.0.1) is the first signed one; the README's
+   code signing policy then gets SignPath's required credit line.

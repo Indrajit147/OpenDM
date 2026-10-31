@@ -71,16 +71,28 @@ def installer(iscc: Path) -> Path:
     return DIST / f"OpenDM-{__version__}-setup.exe"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build OpenDM")
+    parser.add_argument(
+        "--stage", choices=("all", "programs", "package"), default="all",
+        help="programs: only dist\\OpenDM; package: ZIP and installer from an existing "
+        "dist\\OpenDM (CI signs the programs in between, D69)",
+    )  # fmt: skip
     parser.add_argument("--no-installer", action="store_true")
     parser.add_argument("--iscc", type=Path, default=DEFAULT_ISCC)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    shutil.rmtree(DIST / "OpenDM", ignore_errors=True)
-    print("icon:", make_icon())
-    app_dir = pyinstaller()
-    print("programs:", app_dir)
+    app_dir = DIST / "OpenDM"
+    if args.stage in ("all", "programs"):
+        shutil.rmtree(app_dir, ignore_errors=True)
+        print("icon:", make_icon())
+        app_dir = pyinstaller()
+        print("programs:", app_dir)
+        if args.stage == "programs":
+            return 0
+    elif not (app_dir / "OpenDM.exe").is_file():
+        print(f"no programs in {app_dir}; run --stage programs first", file=sys.stderr)
+        return 1
     print("portable:", portable_zip(app_dir))
     if not args.no_installer:
         if not args.iscc.is_file():
