@@ -22,12 +22,13 @@
   (no deletion, no force push; checked via the API), About description, website and topics.
 
 ### Waiting on the user
-- Publish the OpenDM 1.0.1 draft release (the Edge listing is already live and needs it).
 - SignPath: reapply later (declined 2026-10-31 for low visibility, D71).
 
 ### Edge Add-ons (2026-10-31)
 - OpenDM Integration is live on Edge Add-ons (CRX ID `bionffckkflcblecfgnclbndjflemgld`);
-  OpenDM 1.0.1 allows it (release run green). README and INSTALL point Edge users there.
+  OpenDM 1.0.1 allows it; published 2026-10-31 (first release run failed in a test that passed
+  in CI, re-run green; the release workflow now annotates failing tests). The update check
+  offers 1.0.1 to 1.0.0. README and INSTALL point Edge users there.
 
 ## Previous milestone: M9 Hardening and public launch (complete: 1.0.0)
 
