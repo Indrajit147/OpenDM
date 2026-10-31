@@ -48,7 +48,7 @@ temporary file that is deleted when the job ends.
 | `nativeMessaging` | talk to the OpenDM app |
 | `contextMenus` | the "Download with OpenDM" menu items |
 | `cookies` | read the cookies of the site being downloaded, so downloads behind a login work |
-| `storage` | your extension settings (synced by the browser if you use sync) and the media list for open tabs (in memory only) |
+| `storage` | your extension settings (synced by the browser if you use sync), whether the OpenDM app was reachable last time (on this computer only) and the media list for open tabs (in memory only) |
 | `webRequest` | see response **headers** (content type and length) to spot video, audio and stream manifests on a page. Bodies are never read; requests are never changed or blocked |
 | `notifications` | tell you when OpenDM could not take a download (can be turned off) |
 | host access to all sites | needed by `cookies`, `webRequest` and the content script on every site you visit |

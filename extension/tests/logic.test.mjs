@@ -6,7 +6,7 @@ import { cookieHeader } from "../lib/cookies.js";
 import { cleanLinks } from "../lib/links.js";
 import { addDetected, classifyResponse } from "../lib/media.js";
 import { downloadMessage, linksMessage } from "../lib/messages.js";
-import { GET_OPENDM_URL, connectionState } from "../lib/status.js";
+import { GET_OPENDM_URL, buttonText, connectionState, leaveToBrowser, reachState } from "../lib/status.js";
 import { DEFAULTS, normalizeSettings } from "../lib/settings.js";
 import { extensionOf, nameFromUrl, shouldTakeOver } from "../lib/takeover.js";
 
@@ -127,4 +127,22 @@ test("connection state: connected, not installed, too old, not running", () => {
   assert.equal(stopped.state, "not-running");
   assert.equal(stopped.link, undefined);
   assert.equal(connectionState(undefined).state, "not-running");
+});
+
+test("without the app, downloads stay in the browser and buttons say why", () => {
+  const missing = { ok: false, error: "unavailable", message: "Specified native messaging host not found." };
+  const stopped = { ok: false, error: "unavailable", message: "OpenDM did not start" };
+  const refused = { ok: false, error: "invalid", message: "not a web link" }; // the app answered
+  assert.equal(reachState({ ok: true }), "connected");
+  assert.equal(reachState(refused), "connected");
+  assert.equal(reachState(missing), "not-installed");
+  assert.equal(reachState(stopped), "not-running");
+  assert.equal(leaveToBrowser("not-installed"), true);
+  assert.equal(leaveToBrowser("outdated"), true);
+  assert.equal(leaveToBrowser("not-running"), false); // it may be started any moment
+  assert.equal(leaveToBrowser(undefined), false);
+  assert.equal(buttonText({ ok: true }), "Sent to OpenDM");
+  assert.equal(buttonText(missing), "OpenDM is not installed");
+  assert.equal(buttonText(stopped), "Start OpenDM first");
+  assert.equal(buttonText(refused), "OpenDM could not take it");
 });

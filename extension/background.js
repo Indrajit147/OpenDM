@@ -6,6 +6,7 @@ import { cleanLinks } from "./lib/links.js";
 import { addDetected, classifyResponse } from "./lib/media.js";
 import { downloadMessage, linksMessage } from "./lib/messages.js";
 import { normalizeSettings } from "./lib/settings.js";
+import { buttonText, leaveToBrowser, reachState } from "./lib/status.js";
 import { nameFromUrl, shouldTakeOver } from "./lib/takeover.js";
 
 const HOST = "io.github.indrajit147.opendm";
@@ -18,12 +19,22 @@ async function settings() {
 }
 
 export async function sendToOpenDM(message) {
+  let reply;
   try {
-    const reply = await chrome.runtime.sendNativeMessage(HOST, message);
-    return reply || { ok: false, error: "unavailable", message: "no reply from OpenDM" };
+    reply = await chrome.runtime.sendNativeMessage(HOST, message);
+    reply ||= { ok: false, error: "unavailable", message: "no reply from OpenDM" };
   } catch (error) {
-    return { ok: false, error: "unavailable", message: String(error?.message || error) };
+    reply = { ok: false, error: "unavailable", message: String(error?.message || error) };
   }
+  // Remembered so downloads are left alone while the app is missing (see the takeover).
+  await chrome.storage.local.set({ appState: reachState(reply) }).catch(() => {});
+  return reply;
+}
+
+/** After a click the user expects something to happen: if the app is missing or too old,
+ *  open the options page, which says so and links to the download. */
+async function explain(reply) {
+  if (leaveToBrowser(reachState(reply))) await chrome.runtime.openOptionsPage().catch(() => {});
 }
 
 async function cookiesFor(url) {
@@ -57,7 +68,10 @@ async function capture({ url, pageUrl, pageTitle, referrer, filename, fileSize, 
     return { ok: false, error: "invalid", message: error.message };
   }
   const reply = await sendToOpenDM(message);
-  if (!reply.ok) await notify("OpenDM", reply.message || "OpenDM did not accept the link.");
+  if (!reply.ok) {
+    await notify("OpenDM", reply.message || "OpenDM did not accept the link.");
+    await explain(reply);
+  }
   return reply;
 }
 
@@ -68,6 +82,11 @@ chrome.downloads.onCreated.addListener(async (item) => {
   if (!shouldTakeOver(item, await settings(), Date.now(), skipUntil)) return;
   const url = item.finalUrl || item.url;
   if (!/^https?:\/\//i.test(url)) return; // blob:, data: and the like stay in the browser
+  const { appState } = await chrome.storage.local.get("appState");
+  if (leaveToBrowser(appState)) {
+    sendToOpenDM({ type: "status" }); // not even paused; check again for the next one
+    return;
+  }
   try {
     await chrome.downloads.pause(item.id);
   } catch {
@@ -103,7 +122,11 @@ function createMenus() {
   });
 }
 
-chrome.runtime.onInstalled.addListener(createMenus);
+chrome.runtime.onInstalled.addListener(async (details) => {
+  createMenus();
+  // Installed from a store before the app: say right away that the app is needed.
+  if (details.reason === "install") await explain(await sendToOpenDM({ type: "status" }));
+});
 chrome.runtime.onStartup.addListener(createMenus);
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
@@ -128,7 +151,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       return;
     }
     const reply = await sendToOpenDM(linksMessage(urls, page.pageUrl, found?.title || page.pageTitle));
-    if (!reply.ok) await notify("OpenDM", reply.message || "OpenDM did not accept the links.");
+    if (!reply.ok) {
+      await notify("OpenDM", reply.message || "OpenDM did not accept the links.");
+      await explain(reply);
+    }
   }
 });
 
@@ -148,8 +174,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "skip-next":
         await chrome.storage.session.set({ skipUntil: Date.now() + SKIP_MS });
         return { ok: true };
-      case "video":
-        return handleVideo({ src: message.src, pageUrl: sender.tab?.url, pageTitle: sender.tab?.title });
+      case "video": {
+        const reply = await handleVideo({ src: message.src, pageUrl: sender.tab?.url, pageTitle: sender.tab?.title });
+        return { ...reply, text: buttonText(reply) };
+      }
       case "download-detected":
         return message.item.kind === "manifest"
           ? capture({ url: message.pageUrl, media: true, pageUrl: message.pageUrl, pageTitle: message.pageTitle })

@@ -76,9 +76,14 @@
       event.preventDefault();
       event.stopPropagation();
       if (!current) return;
-      chrome.runtime.sendMessage({ type: "video", src: current.currentSrc || current.src }).catch(() => {});
-      button.textContent = "Sent to OpenDM";
-      setTimeout(() => (button.textContent = "Download"), 2000);
+      button.textContent = "Sending…";
+      chrome.runtime
+        .sendMessage({ type: "video", src: current.currentSrc || current.src })
+        .then((reply) => reply?.text || "OpenDM could not take it", () => "OpenDM could not take it")
+        .then((text) => {
+          button.textContent = text;
+          setTimeout(() => (button.textContent = "Download"), 3000);
+        });
     });
   }
 })();

@@ -37,7 +37,7 @@ $("reset").addEventListener("click", async () => {
   say("Defaults restored.");
 });
 
-$("test").addEventListener("click", async () => {
+async function test() {
   say("Testing…");
   const reply = await chrome.runtime.sendMessage({ type: "status" });
   const info = connectionState(reply);
@@ -50,4 +50,7 @@ $("test").addEventListener("click", async () => {
     link.textContent = " Get OpenDM";
     $("result").append(link);
   }
-});
+}
+
+$("test").addEventListener("click", test);
+test(); // opened after a failed click: say at once what is wrong

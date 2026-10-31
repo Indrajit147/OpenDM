@@ -9,6 +9,12 @@ GitHub release notes. Versions follow `X.Y.Z`, with `-rc.N` for test releases.
 - Video download dialog: MP3 and M4A (audio only) are now under *Format* next to MP4, MKV and
   WebM; *Quality* is greyed out for them.
 
+### Fixed
+- Extension without the OpenDM app (or with an OpenDM too old for it): downloads stay in the
+  browser instead of being paused and handed over, the video button says "OpenDM is not
+  installed" instead of "Sent to OpenDM", and clicking it or a menu item opens a page that
+  explains how to get OpenDM. A store install without the app opens that page at once.
+
 ## [1.0.1] - 2026-10-31
 
 ### Added

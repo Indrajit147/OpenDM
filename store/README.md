@@ -74,7 +74,7 @@ manager app on the same computer.
 | `nativeMessaging` | The only channel to the OpenDM app on the same computer. |
 | `contextMenus` | "Download with OpenDM", "Download all links" and "Download video on this page" menu items. |
 | `cookies` | Read the cookies of the site a download comes from, so files behind a login download in OpenDM; sent only to the local app, for that download. |
-| `storage` | The user's extension settings, and the list of media found in open tabs (session only). |
+| `storage` | The user's extension settings, whether the OpenDM app was reachable last time (so downloads are left to the browser without it), and the list of media found in open tabs (session only). |
 | `webRequest` | Read response headers (content type and length) to recognise video, audio and stream manifests on a page. Bodies are not read; requests are not modified or blocked. |
 | `notifications` | Tell the user when OpenDM could not take over a download (can be turned off). |
 | Host access (`<all_urls>`) | Needed for the cookies of any download site, media detection on any page, and the video button. |
