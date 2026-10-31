@@ -9,6 +9,7 @@ button:disabled { opacity: .5; cursor: default; }
 .popup .status { margin-left: auto; font-size: 12px; }
 .popup .status.ok { color: var(--accent); }
 .popup .status.bad { color: #c0392b; }
+.popup .help { margin: 6px 0 8px; font-size: 12px; }
 .popup h2 { font-size: 12px; margin: 12px 0 4px; text-transform: uppercase; color: var(--muted); }
 .popup ul { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
 .popup li { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 0; border-bottom: 1px solid #8882; }

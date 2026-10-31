@@ -6,7 +6,8 @@ maintainer's decision and needs their own accounts:
 - **Chrome Web Store:** a developer account with a one-time registration fee (US$5 when
   Google introduced it; the dashboard shows the current amount).
   [Register](https://developer.chrome.com/docs/webstore/register).
-- **Edge Add-ons:** free, through Partner Center (a personal Microsoft or GitHub account).
+- **Edge Add-ons:** free, through Partner Center (a personal Microsoft or GitHub account);
+  step by step at the end of this page.
   [Register](https://learn.microsoft.com/microsoft-edge/extensions/publish/create-dev-account).
 
 ## Package
@@ -86,11 +87,33 @@ user started to the OpenDM app on the same computer. Nothing is sold, transferre
 parties, used for advertising or creditworthiness, or sent anywhere else. Tick the
 certifications accordingly.
 
-## Edge Add-ons
+## Edge Add-ons: step by step
 
-Same ZIP, description, images and privacy policy URL. Edge asks for a short "notes for
-certification": *"Companion extension for the OpenDM desktop app (open source,
-https://github.com/Indrajit147/OpenDM). To test: install OpenDM from the Releases page, open
-Settings -> Browser, click Set up, then start a download in Edge."* Note that a store build
-only connects once its store ID is added to OpenDM (see above), so for the first review the
-reviewers can install the app and see the popup's "App not running"/"Connected" status.
+1. **Register (free, once).** Go to
+   [Partner Center for Edge](https://partner.microsoft.com/dashboard/microsoftedge/overview)
+   and sign in with a personal Microsoft or GitHub account. Choose to register as an
+   *Individual*, fill in your name and contact details, accept the Microsoft Edge Developer
+   Agreement and wait for the confirmation email.
+2. **Build the package:** `.venv\Scripts\python.exe scripts\package_extension.py` ->
+   `build\store\opendm-extension-<version>.zip`.
+3. **Create the submission:** Partner Center -> Microsoft Edge -> **Create new extension** ->
+   upload the ZIP.
+4. **Availability:** Public, all markets.
+5. **Properties:** Category *Productivity*; privacy policy URL (above); website and support
+   URLs (above); "Does this extension access personal information?" -> *Yes* (cookies and page
+   links, only passed to the local OpenDM app; see the privacy practices above); mature
+   content -> No.
+6. **Store listings (English):** the description and summary above as the description and
+   short description, `images/icon-300.png` as the store logo (300x300), `images/promo-440x280.png` as the
+   small promo tile, and the three `images/screenshot-*-1280x800.png`.
+7. **Notes for certification:**
+   *"Companion extension for the OpenDM desktop app (open source, GPL-3.0,
+   https://github.com/Indrajit147/OpenDM). It uses native messaging to hand downloads to the
+   app. To test: install OpenDM from https://github.com/Indrajit147/OpenDM/releases/latest,
+   open Settings > Browser and click Set up, then start a download in Edge. Without the app
+   the popup shows 'App not installed' with a link to get it."*
+8. **Publish** and wait for certification (Microsoft quotes up to 7 business days).
+9. **When it is live:** open the listing; its address ends with the extension ID (32 letters
+   a-p). Send it to Claude: it goes into `EXTENSION_IDS`, OpenDM 1.0.1 is released, and users
+   who update and click *Repair* in Settings -> Browser can use the store version. Until 1.0.1
+   is installed, the store version shows "Update OpenDM".

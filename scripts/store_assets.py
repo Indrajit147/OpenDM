@@ -3,8 +3,9 @@ r"""Images for the Chrome Web Store and Edge Add-ons listings, written to store\
     .venv\Scripts\python.exe scripts\screenshots.py      (renders build\screens first)
     .venv\Scripts\python.exe scripts\store_assets.py
 
-promo-440x280.png (small promo tile), screenshot-*-1280x800.png (the app's own screens,
-letterboxed) and icon-128.png. Everything is drawn from OpenDM's own icon and screenshots.
+promo-440x280.png (small promo tile), icon-300.png (Edge logo), icon-128.png and
+screenshot-*-1280x800.png (the app's own screens, letterboxed). Everything is drawn from
+OpenDM's own icon and screenshots.
 """
 
 import sys
@@ -67,6 +68,7 @@ def main() -> int:
     QGuiApplication(sys.argv[:1])
     OUT.mkdir(parents=True, exist_ok=True)
     _render(128).save(str(OUT / "icon-128.png"))
+    _render(300).save(str(OUT / "icon-300.png"))  # Edge Add-ons store logo
     promo(OUT / "promo-440x280.png")
     for name, caption in (
         ("main-dark", "Downloads from Chrome and Edge go straight to OpenDM"),

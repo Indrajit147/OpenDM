@@ -1,4 +1,6 @@
 // Popup: connection status, the media detected on this tab, and a one-click page download.
+import { connectionState } from "../lib/status.js";
+
 const $ = (id) => document.getElementById(id);
 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 const page = { pageUrl: tab?.url, pageTitle: tab?.title };
@@ -24,10 +26,24 @@ async function send(message, button) {
   else button.disabled = false;
 }
 
+const LABELS = {
+  connected: "Connected",
+  "not-installed": "App not installed",
+  outdated: "Update OpenDM",
+  "not-running": "App not running",
+};
 chrome.runtime.sendMessage({ type: "status" }).then((reply) => {
-  $("status").textContent = reply?.ok ? "Connected" : "App not running";
-  $("status").classList.add(reply?.ok ? "ok" : "bad");
-  if (!reply?.ok) $("status").title = reply?.message || "";
+  const info = connectionState(reply);
+  $("status").textContent = LABELS[info.state];
+  $("status").classList.add(info.state === "connected" ? "ok" : "bad");
+  if (info.state === "connected") return;
+  $("status").title = reply?.message || "";
+  $("help-text").textContent = info.text;
+  $("help").hidden = false;
+  if (info.link) {
+    $("help-link").href = info.link;
+    $("help-link").hidden = false;
+  }
 });
 
 $("page-video").disabled = !isWeb;

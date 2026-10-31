@@ -1,5 +1,6 @@
 // Options page: edits chrome.storage.sync through the same normalizer the worker uses.
 import { DEFAULTS, normalizeSettings } from "../lib/settings.js";
+import { connectionState } from "../lib/status.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -39,5 +40,14 @@ $("reset").addEventListener("click", async () => {
 $("test").addEventListener("click", async () => {
   say("Testing…");
   const reply = await chrome.runtime.sendMessage({ type: "status" });
-  say(reply?.ok ? "OpenDM is running and connected." : `Not connected: ${reply?.message || "unknown error"}`);
+  const info = connectionState(reply);
+  say(info.text);
+  if (info.link) {
+    const link = document.createElement("a");
+    link.href = info.link;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = " Get OpenDM";
+    $("result").append(link);
+  }
 });

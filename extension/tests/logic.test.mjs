@@ -6,6 +6,7 @@ import { cookieHeader } from "../lib/cookies.js";
 import { cleanLinks } from "../lib/links.js";
 import { addDetected, classifyResponse } from "../lib/media.js";
 import { downloadMessage, linksMessage } from "../lib/messages.js";
+import { GET_OPENDM_URL, connectionState } from "../lib/status.js";
 import { DEFAULTS, normalizeSettings } from "../lib/settings.js";
 import { extensionOf, nameFromUrl, shouldTakeOver } from "../lib/takeover.js";
 
@@ -112,4 +113,18 @@ test("links: absolute http(s) only, no fragments, no duplicates", () => {
   assert.deepEqual(linksMessage(links, "https://h/dir/page.html", "Page"), {
     type: "links", urls: links, pageUrl: "https://h/dir/page.html", pageTitle: "Page",
   });
+});
+
+test("connection state: connected, not installed, too old, not running", () => {
+  assert.equal(connectionState({ ok: true }).state, "connected");
+  const missing = connectionState({ ok: false, message: "Specified native messaging host not found." });
+  assert.equal(missing.state, "not-installed");
+  assert.equal(missing.link, GET_OPENDM_URL);
+  const old = connectionState({ ok: false, message: "Access to the specified native messaging host is forbidden." });
+  assert.equal(old.state, "outdated");
+  assert.match(old.text, /Repair/);
+  const stopped = connectionState({ ok: false, error: "unavailable", message: "OpenDM did not start" });
+  assert.equal(stopped.state, "not-running");
+  assert.equal(stopped.link, undefined);
+  assert.equal(connectionState(undefined).state, "not-running");
 });
