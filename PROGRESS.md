@@ -18,8 +18,10 @@
   store rules). Chrome Web Store waits for the one-time fee.
 - Tests: 775 Python, 14 extension; ruff clean.
 
+- GitHub settings done by the user (2026-10-31): 2FA, security features, ruleset `main`
+  (no deletion, no force push; checked via the API), About description, website and topics.
+
 ### Waiting on the user
-- GitHub settings (docs/GITHUB_SETTINGS.md), starting with two-factor authentication.
 - Edge: register in Partner Center, submit `build\store\opendm-extension-1.0.0.zip` with the
   listing in `store/README.md`; send Claude the store ID once it is live -> OpenDM 1.0.1.
 - SignPath: apply (docs/CODE_SIGNING.md); after acceptance add the secret and variables.
