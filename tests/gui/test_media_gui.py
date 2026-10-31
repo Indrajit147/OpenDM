@@ -82,7 +82,11 @@ def test_video_page_to_completed_download(qtbot, gui: GuiApp, tmp_path: Path) ->
     dialog = gui.media_dialog
     assert dialog is not None
     qualities = [dialog.quality.itemData(i) for i in range(dialog.quality.count())]
-    assert qualities == ["best", "1080", "720", "audio-mp3", "audio-m4a"]
+    assert qualities == ["best", "1080", "720"]
+    # the separator line has no data
+    formats = [dialog.container.itemData(i) for i in range(dialog.container.count())
+               if dialog.container.itemData(i) is not None]  # fmt: skip
+    assert formats == ["mp4", "mkv", "webm", "audio-mp3", "audio-m4a"]  # audio is a format
     subs = [dialog.subtitles.item(i).data(Qt.ItemDataRole.UserRole)
             for i in range(dialog.subtitles.count())]  # fmt: skip
     assert subs == ["en", "auto:bn"]
@@ -106,9 +110,16 @@ def test_audio_choice_goes_to_audio_folder(qtbot, gui: GuiApp, tmp_path: Path) -
     qtbot.waitUntil(lambda: gui.media_dialog is not None, timeout=WAIT)
     dialog = gui.media_dialog
     assert dialog is not None
-    dialog.quality.setCurrentIndex(dialog.quality.findData("audio-mp3"))
-    assert not dialog.container.isEnabled()
+    dialog.container.setCurrentIndex(dialog.container.findData("audio-mp3"))
+    assert not dialog.quality.isEnabled()  # video quality means nothing for MP3
     assert Path(dialog.folder_edit.text()) == tmp_path / "dl" / "Audio"
+    assert dialog.options().quality == "audio-mp3"
+    dialog.container.setCurrentIndex(dialog.container.findData("mkv"))
+    dialog.quality.setCurrentIndex(dialog.quality.findData("720"))
+    assert dialog.quality.isEnabled()
+    assert Path(dialog.folder_edit.text()) == tmp_path / "dl" / "Video"
+    options = dialog.options()
+    assert (options.quality, options.container) == ("720", "mkv")
 
 
 def test_playlist_selection(qtbot, gui: GuiApp, tmp_path: Path) -> None:

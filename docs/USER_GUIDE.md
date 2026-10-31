@@ -46,7 +46,7 @@ SOCKS proxy.
 
 Paste a page link (YouTube, Vimeo and many more sites through
 [yt-dlp](https://github.com/yt-dlp/yt-dlp)) and OpenDM shows a quality picker: best
-quality or a height cap, MP4/MKV/WebM, audio only as MP3 or M4A, subtitles, and the
+quality or a height cap; the format MP4/MKV/WebM, or MP3/M4A for audio only; subtitles and the
 thumbnail. For a playlist you choose which items to download. A link to one video inside a
 playlist or YouTube Mix downloads just that video; *Show the whole playlist...* lists them
 all.

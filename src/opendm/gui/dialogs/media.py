@@ -79,11 +79,14 @@ class MediaDialog(QDialog):
         if info.is_playlist:  # entries may differ: offer the usual caps
             for height in ("1080", "720", "480"):
                 self.quality.addItem(f"{height}p", height)
-        self.quality.addItem(self.tr("Audio only (MP3)"), "audio-mp3")
-        self.quality.addItem(self.tr("Audio only (M4A)"), "audio-m4a")
+        # Format holds both the video containers and the audio-only choices; for audio the
+        # quality list does not apply.
         self.container = QComboBox()
         for container in CONTAINERS:
             self.container.addItem(container.upper(), container)
+        self.container.insertSeparator(self.container.count())
+        self.container.addItem(self.tr("MP3 (audio only)"), "audio-mp3")
+        self.container.addItem(self.tr("M4A (audio only)"), "audio-m4a")
         self.subtitles = QListWidget()
         self.subtitles.setMaximumHeight(90)
         for lang in info.subtitles:
@@ -155,8 +158,8 @@ class MediaDialog(QDialog):
         self.queue_button.clicked.connect(lambda: self._finish(False))
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
-        self.quality.currentIndexChanged.connect(self._quality_changed)
-        self._quality_changed()
+        self.container.currentIndexChanged.connect(self._format_changed)
+        self._format_changed()
 
     @staticmethod
     def _add_check(widget: QListWidget, text: str, data: str) -> QListWidgetItem:
@@ -178,14 +181,15 @@ class MediaDialog(QDialog):
             if widget.item(i).checkState() == Qt.CheckState.Checked
         ]
 
+    def _audio(self) -> bool:
+        return str(self.container.currentData()).startswith("audio-")
+
     def _category(self) -> Category | None:
-        audio = str(self.quality.currentData()).startswith("audio-")
-        sample = "x.mp3" if audio else "x." + str(self.container.currentData())
+        sample = "x.mp3" if self._audio() else "x." + str(self.container.currentData())
         return match_category(sample, self._categories) if self._categories else None
 
-    def _quality_changed(self) -> None:
-        audio = str(self.quality.currentData()).startswith("audio-")
-        self.container.setEnabled(not audio)
+    def _format_changed(self) -> None:
+        self.quality.setEnabled(not self._audio())
         if not self._folder_edited:
             category = self._category()
             folder = category_folder(category, self._base) if category else self._base
@@ -210,9 +214,10 @@ class MediaDialog(QDialog):
         picked = self._checked(self.subtitles)
         manual = tuple(p for p in picked if not p.startswith("auto:"))
         auto = tuple(p.removeprefix("auto:") for p in picked if p.startswith("auto:"))
+        audio = self._audio()
         return MediaOptions(
-            quality=str(self.quality.currentData()),
-            container=str(self.container.currentData()),
+            quality=str(self.container.currentData()) if audio else str(self.quality.currentData()),
+            container=CONTAINERS[0] if audio else str(self.container.currentData()),
             subtitles=manual + auto,
             auto_subtitles=bool(auto),
             embed_thumbnail=self.embed_thumbnail.isChecked(),
