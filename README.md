@@ -54,8 +54,10 @@ encrypted and only sent to the site they belong to. See [PRIVACY.md](docs/PRIVAC
 
 Releases are built from tagged source by the public
 [release workflow](.github/workflows/release.yml) on GitHub-hosted runners. They are not
-code-signed yet; signing is planned through a free open-source signing program
-([CODE_SIGNING.md](docs/CODE_SIGNING.md)), and every signing request will be approved by hand.
+code-signed yet: OpenDM has applied to the [SignPath Foundation](https://signpath.org) for
+free code signing of open-source software ([CODE_SIGNING.md](docs/CODE_SIGNING.md)). Once
+accepted, releases are signed through [SignPath.io](https://signpath.io) with a certificate
+issued to SignPath Foundation, and every signing request is approved by hand.
 
 - Author, reviewer and approver: [Indrajit Gupta](https://github.com/Indrajit147)
 - Privacy policy: [PRIVACY.md](docs/PRIVACY.md). OpenDM sends nothing to its developers;

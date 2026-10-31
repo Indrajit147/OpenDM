@@ -26,7 +26,7 @@ that the software is already released in the form to be signed).
 | No security tools that find/exploit vulnerabilities or bypass security | None. DRM is never bypassed. |
 | Disclose data transfers in a privacy policy, **show it during installation**, offer a way to turn them off | [PRIVACY.md](PRIVACY.md); the installer shows a privacy note (`installer/privacy-note.txt`) before the folder page; the update check is off by default. |
 | Announce system configuration changes; provide an uninstaller | The installer lists the browser registration; uninstaller included. |
-| Team roles (authors, reviewers, approvers) and MFA for everyone on SignPath and GitHub | **To do:** turn on GitHub two-factor authentication and name the roles. |
+| Team roles (authors, reviewers, approvers) and MFA for everyone on SignPath and GitHub | GitHub two-factor authentication on (2026-10-31); roles named in the README. |
 | A "Code signing policy" section on the home and download pages (signing credit, team roles, privacy policy link) | The README has the section with roles and the privacy policy; the credit line is added once SignPath accepts the project. |
 | Product name and version set consistently in each build | Already: version info from `opendm.__version__` in every program and the installer. |
 
@@ -46,21 +46,33 @@ until SignPath is set up. With it set, a release:
 ## Applying: step by step (maintainer)
 
 1. Turn on two-factor authentication on GitHub (see [GITHUB_SETTINGS.md](GITHUB_SETTINGS.md)).
-2. Apply on [signpath.org](https://signpath.org) ("Apply for free code signing"). Answers
-   you can paste:
-   - **Project:** OpenDM, https://github.com/Indrajit147/OpenDM, GPL-3.0-or-later.
-   - **Description:** A free, open-source download manager for Windows (multi-connection
-     downloads, queues, video downloads through yt-dlp, a Chrome/Edge extension). No
-     telemetry; DRM-protected content is refused.
-   - **What is signed:** `OpenDM.exe`, `opendm-cli.exe`, `opendm-host.exe` (PyInstaller) and
-     the Inno Setup installer `OpenDM-<version>-setup.exe`, built by the public GitHub
-     Actions release workflow on GitHub-hosted runners from tagged source.
-   - **Third-party components:** Python, Qt for Python (LGPL-3.0), httpx, PyInstaller
-     bootloader (GPL with exception). yt-dlp and FFmpeg are not shipped; the app downloads
-     them with the user's consent.
-   - **Releases:** https://github.com/Indrajit147/OpenDM/releases (1.0.0, 2026-10-31).
-   - **Privacy policy:** https://github.com/Indrajit147/OpenDM/blob/main/docs/PRIVACY.md
-   - **Team:** Indrajit Gupta (author, reviewer, approver).
+2. Apply on [signpath.org/apply](https://signpath.org/apply). The form's fields (as of
+   2026-10-31) and answers you can paste:
+   - **Project Name:** OpenDM
+   - **Repository URL:** https://github.com/Indrajit147/OpenDM
+   - **Homepage URL:** https://github.com/Indrajit147/OpenDM
+   - **Download URL** (the page must mention SignPath Foundation; the README's code signing
+     policy does): https://github.com/Indrajit147/OpenDM#code-signing-policy
+   - **Privacy Policy URL:** https://github.com/Indrajit147/OpenDM/blob/main/docs/PRIVACY.md
+   - **Wikipedia URL:** leave empty.
+   - **Tagline:** Free, open-source download manager for Windows with no ads and no
+     telemetry.
+   - **Category:** the closest to "Utilities" / "Networking" in the list.
+   - **Description:** OpenDM is a free, open-source (GPL-3.0-or-later) download manager for
+     Windows. It speeds up and organises downloads with multi-connection transfers, pause
+     and resume, queues and schedules, downloads videos and audio through yt-dlp with the
+     user's consent, and takes over browser downloads through a Chrome/Edge extension. It
+     has no ads, no account and no telemetry, and refuses DRM-protected content. Releases are
+     built by a public GitHub Actions workflow from tagged source.
+   - **Reputation:** state it honestly; the project is new. For example: "New project, first
+     stable release 1.0.0 on 2026-10-31. Fully public development history, CI and release
+     workflow on GitHub; an Edge Add-ons listing is in review." Add store links, stars or
+     articles as they come.
+   - **Maintainer Type:** individual.
+   - **Build System:** GitHub Actions.
+   - **First/Last Name, Email:** your own (this creates your SignPath account).
+   - Tick the Code of Conduct box (certificates are issued in SignPath Foundation's name) and
+     the personal-data box; the marketing box is optional.
 3. When SignPath accepts the project, in SignPath:
    - add the predefined **GitHub.com trusted build system** to the organization and link
      it to the project;
