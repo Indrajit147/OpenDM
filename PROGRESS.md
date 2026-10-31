@@ -22,8 +22,8 @@
   (no deletion, no force push; checked via the API), About description, website and topics.
 
 ### Waiting on the user
-- Edge: register in Partner Center, submit `build\store\opendm-extension-1.0.0.zip` with the
-  listing in `store/README.md`; send Claude the store ID once it is live -> OpenDM 1.0.1.
+- Edge: the extension is uploaded as a draft (CRX ID `bionffckkflcblecfgnclbndjflemgld`, in
+  `EXTENSION_IDS` since 1.0.1). Publish 1.0.1 first, then click Publish in Partner Center.
 - SignPath: apply (docs/CODE_SIGNING.md); after acceptance add the secret and variables.
 
 ## Previous milestone: M9 Hardening and public launch (complete: 1.0.0)

@@ -3,6 +3,16 @@
 All notable changes to OpenDM. The release workflow copies a version's section into the
 GitHub release notes. Versions follow `X.Y.Z`, with `-rc.N` for test releases.
 
+## [1.0.1] - 2026-10-31
+
+### Added
+- The OpenDM extension from Microsoft Edge Add-ons can talk to the app. Installing or
+  updating OpenDM sets this up; with the portable ZIP, click *Repair* in Settings -> Browser.
+- The extension tells apart "OpenDM is not installed" (with a link to get it), "OpenDM needs
+  an update" and "OpenDM is not running".
+- Code signing policy in the README; the release workflow is ready to sign builds through
+  SignPath once the project is accepted (until then builds stay unsigned).
+
 ## [1.0.0] - 2026-10-31
 
 First public release.

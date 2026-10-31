@@ -59,6 +59,13 @@ def test_manifest_content(tmp_path: Path) -> None:
     }
 
 
+def test_unpacked_and_edge_store_extensions_are_allowed(tmp_path: Path) -> None:
+    origins = reg.host_manifest(fake_host(tmp_path))["allowed_origins"]
+    assert "chrome-extension://pjkejmcidaikllfpgmfginpahcockofb/" in origins  # unpacked (key)
+    assert "chrome-extension://bionffckkflcblecfgnclbndjflemgld/" in origins  # Edge Add-ons
+    assert all(len(i) == 32 and set(i) <= set("abcdefghijklmnop") for i in EXTENSION_IDS)
+
+
 def test_register_writes_manifest_and_keys(tmp_path: Path, browsers) -> None:
     host = fake_host(tmp_path)
     manifest = reg.register(host, host.parent, browsers=browsers)

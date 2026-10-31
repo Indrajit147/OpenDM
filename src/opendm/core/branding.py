@@ -18,9 +18,12 @@ HOST_EXE: Final = f"{APP_SLUG}-host.exe"
 # Native Messaging host name: lowercase letters, digits, "_" and "." only.
 NATIVE_HOST_NAME: Final = f"io.github.indrajit147.{APP_SLUG}"
 
-# Extensions allowed to start the host (fixed by the manifest "key"; store IDs are added at
-# release).
-EXTENSION_IDS: Final = ("pjkejmcidaikllfpgmfginpahcockofb",)
+# Extensions allowed to start the host: the unpacked one (fixed by the manifest "key") and
+# each store's own ID.
+EXTENSION_IDS: Final = (
+    "pjkejmcidaikllfpgmfginpahcockofb",  # unpacked
+    "bionffckkflcblecfgnclbndjflemgld",  # Microsoft Edge Add-ons
+)
 
 # Held by the running app so the installer and uninstaller can ask the user to close it
 # (Inno Setup AppMutex). Fixed, unlike the per-user pipe name.
